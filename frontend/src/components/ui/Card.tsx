@@ -1,16 +1,18 @@
 import React from 'react';
-import { theme } from '../../theme';
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+interface CardProps {
   children: React.ReactNode;
   className?: string;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', ...props }) => (
-  <div
-    className={`bg-white rounded-lg shadow-md border border-[${theme.colors.border}] p-6 ${className}`}
-    {...props}
-  >
-    {children}
-  </div>
-);
+const Card: React.FC<CardProps> = ({ children, className }) => {
+  return (
+    <div
+      className={`p-6 bg-gray-800 rounded-lg shadow-lg hover:scale-105 transform transition duration-300 ${className}`}
+    >
+      {children}
+    </div>
+  );
+};
+
+export default Card;
