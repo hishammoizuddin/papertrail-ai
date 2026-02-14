@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+papertrail.db
+storage/
+
+# Node
+node_modules/
+dist/
+.env
+# Root
+/.env

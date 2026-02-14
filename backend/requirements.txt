@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlmodel
+pydantic
+python-dotenv
+PyMuPDF
+openai
+pinecone-client
+pytesseract
+pillow
+python-multipart
