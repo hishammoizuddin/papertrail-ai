@@ -4,7 +4,7 @@ import { listDocuments, uploadDocument, processDocument, Document } from '../api
 import UploadDropzone from '../components/UploadDropzone';
 import DocumentList from '../components/DocumentList';
 import { Section } from '../components/ui/Section';
-import { Card } from '../components/ui/Card';
+import Card from '../components/ui/Card';
 
 const InboxPage: React.FC = () => {
 	const [documents, setDocuments] = useState<Document[]>([]);
@@ -53,15 +53,15 @@ const InboxPage: React.FC = () => {
 
 		return (
 			<Section title="Inbox">
-				<Card>
+				<div className="bg-white rounded-lg shadow p-8 max-w-4xl mx-auto">
 					<UploadDropzone onUpload={handleUpload} uploading={uploading} />
-					{error && <div className="text-red-500 my-2 font-medium">{error}</div>}
+					{error && <div className="text-red-500 my-4 font-medium">{error}</div>}
 					{loading ? (
-						<div className="my-4 text-gray-500">Loading documents...</div>
+						<div className="my-6 text-gray-500 text-lg">Loading documents...</div>
 					) : (
 						<DocumentList documents={documents} onProcess={handleProcess} />
 					)}
-				</Card>
+				</div>
 			</Section>
 		);
 };

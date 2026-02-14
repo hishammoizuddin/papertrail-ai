@@ -3,9 +3,9 @@
 import React from 'react';
 import { Document } from '../api/documents';
 import { Link } from 'react-router-dom';
-import { Button } from './ui/Button';
+import Button from './ui/Button';
 import { Badge } from './ui/Badge';
-import { Card } from './ui/Card';
+import Card from './ui/Card';
 
 interface Props {
 	documents: Document[];
@@ -49,11 +49,11 @@ const DocumentList: React.FC<Props> = ({ documents, onProcess }) => {
 							<td className="p-3">{statusBadge(doc.status)}</td>
 							<td className="p-3">
 								<Button
-									size="sm"
+									className="px-4 py-1 text-sm"
 									onClick={() => onProcess(doc.id)}
-									disabled={doc.status === 'extracted'}
+									disabled={doc.status === 'processing'}
 								>
-									{doc.status === 'extracted' ? 'Processed' : 'Process'}
+									{doc.status === 'extracted' ? 'Re-extract' : doc.status === 'processing' ? 'Processing...' : 'Process'}
 								</Button>
 							</td>
 						</tr>
