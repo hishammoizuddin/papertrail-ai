@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { listDocuments, uploadDocument, processDocument, Document } from '../api/documents';
 import UploadDropzone from '../components/UploadDropzone';
 import DocumentList from '../components/DocumentList';
+import { Section } from '../components/ui/Section';
+import { Card } from '../components/ui/Card';
 
 const InboxPage: React.FC = () => {
 	const [documents, setDocuments] = useState<Document[]>([]);
@@ -49,18 +51,19 @@ const InboxPage: React.FC = () => {
 		}
 	};
 
-	return (
-		<div className="max-w-3xl mx-auto py-8">
-			<h1 className="text-2xl font-bold mb-4">Inbox</h1>
-			<UploadDropzone onUpload={handleUpload} uploading={uploading} />
-			{error && <div className="text-red-500 my-2">{error}</div>}
-			{loading ? (
-				<div className="my-4">Loading documents...</div>
-			) : (
-				<DocumentList documents={documents} onProcess={handleProcess} />
-			)}
-		</div>
-	);
+		return (
+			<Section title="Inbox">
+				<Card>
+					<UploadDropzone onUpload={handleUpload} uploading={uploading} />
+					{error && <div className="text-red-500 my-2 font-medium">{error}</div>}
+					{loading ? (
+						<div className="my-4 text-gray-500">Loading documents...</div>
+					) : (
+						<DocumentList documents={documents} onProcess={handleProcess} />
+					)}
+				</Card>
+			</Section>
+		);
 };
 
 export default InboxPage;

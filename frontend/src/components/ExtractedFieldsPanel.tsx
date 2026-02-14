@@ -1,87 +1,92 @@
 
+
 import React from 'react';
+import { Badge } from './ui/Badge';
 
 interface Props {
 	data: any;
 }
 
+const SectionBlock: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+	<div className="mb-4">
+		<div className="text-sm font-semibold text-gray-600 mb-1">{title}</div>
+		<div>{children}</div>
+	</div>
+);
 
 const ExtractedFieldsPanel: React.FC<Props> = ({ data }) => {
-	if (!data) return <div className="text-gray-500">No extracted data.</div>;
+	if (!data) return <div className="text-gray-400 italic">No extracted data.</div>;
 
 	return (
 		<div className="space-y-2">
-			<div><b>Doc Type:</b> {data.doc_type || '-'}</div>
-			<div><b>Issuer:</b> {data.issuer || '-'}</div>
+			<SectionBlock title="Document Type">
+				<Badge color="primary">{data.doc_type || '-'}</Badge>
+			</SectionBlock>
+			<SectionBlock title="Issuer">
+				{data.issuer || <span className="text-gray-400">-</span>}
+			</SectionBlock>
 			{data.people && data.people.length > 0 && (
-				<div>
-					<b>People:</b>
+				<SectionBlock title="People">
 					<ul className="list-disc ml-6">
 						{data.people.map((p: any, i: number) => (
-							<li key={i}>{p.name}{p.role ? ` (${p.role})` : ''}</li>
+							<li key={i}>{p.name}{p.role ? <span className="text-gray-400"> ({p.role})</span> : ''}</li>
 						))}
 					</ul>
-				</div>
+				</SectionBlock>
 			)}
 			{data.addresses && data.addresses.length > 0 && (
-				<div>
-					<b>Addresses:</b>
+				<SectionBlock title="Addresses">
 					<ul className="list-disc ml-6">
 						{data.addresses.map((a: any, i: number) => (
-							<li key={i}>{a.address}{a.label ? ` (${a.label})` : ''}</li>
+							<li key={i}>{a.address}{a.label ? <span className="text-gray-400"> ({a.label})</span> : ''}</li>
 						))}
 					</ul>
-				</div>
+				</SectionBlock>
 			)}
 			{data.amounts && data.amounts.length > 0 && (
-				<div>
-					<b>Amounts:</b>
+				<SectionBlock title="Amounts">
 					<ul className="list-disc ml-6">
 						{data.amounts.map((a: any, i: number) => (
-							<li key={i}>{a.value} {a.currency || ''} {a.label ? `(${a.label})` : ''}</li>
+							<li key={i}>{a.value} {a.currency || ''} {a.label ? <span className="text-gray-400">({a.label})</span> : ''}</li>
 						))}
 					</ul>
-				</div>
+				</SectionBlock>
 			)}
 			{data.dates && data.dates.length > 0 && (
-				<div>
-					<b>Dates:</b>
+				<SectionBlock title="Dates">
 					<ul className="list-disc ml-6">
 						{data.dates.map((d: any, i: number) => (
 							<li key={i}>{d.label}: {d.date}</li>
 						))}
 					</ul>
-				</div>
+				</SectionBlock>
 			)}
 			{data.deadlines && data.deadlines.length > 0 && (
-				<div>
-					<b>Deadlines:</b>
+				<SectionBlock title="Deadlines">
 					<ul className="list-disc ml-6">
 						{data.deadlines.map((d: any, i: number) => (
-							<li key={i}>{d.action} - {d.due_date} ({d.severity})</li>
+							<li key={i}>{d.action} - {d.due_date} <Badge color={d.severity === 'high' ? 'danger' : d.severity === 'medium' ? 'warning' : 'success'}>{d.severity}</Badge></li>
 						))}
 					</ul>
-				</div>
+				</SectionBlock>
 			)}
 			{data.summary_bullets && data.summary_bullets.length > 0 && (
-				<div>
-					<b>Summary:</b>
+				<SectionBlock title="Summary">
 					<ul className="list-disc ml-6">
 						{data.summary_bullets.map((s: string, i: number) => (
 							<li key={i}>{s}</li>
 						))}
 					</ul>
-				</div>
+				</SectionBlock>
 			)}
 			{data.recommended_actions && data.recommended_actions.length > 0 && (
-				<div>
-					<b>Recommended Actions:</b>
+				<SectionBlock title="Recommended Actions">
 					<ul className="list-disc ml-6">
 						{data.recommended_actions.map((a: string, i: number) => (
 							<li key={i}>{a}</li>
 						))}
 					</ul>
-				</div>
+				</SectionBlock>
 			)}
 		</div>
 	);

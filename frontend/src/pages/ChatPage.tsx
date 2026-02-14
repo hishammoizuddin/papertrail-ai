@@ -1,6 +1,10 @@
 
 import React, { useState } from 'react';
 import { chat, ChatResponse } from '../api/chat';
+import { Section } from '../components/ui/Section';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 
 const ChatPage: React.FC = () => {
 	const [input, setInput] = useState('');
@@ -23,40 +27,37 @@ const ChatPage: React.FC = () => {
 		}
 	};
 
-	return (
-		<div className="max-w-2xl mx-auto py-8">
-			<h1 className="text-2xl font-bold mb-4">Chat Across All Docs</h1>
-			<form onSubmit={handleSend} className="flex gap-2 mb-4">
-				<input
-					className="flex-1 border rounded px-3 py-2"
-					value={input}
-					onChange={e => setInput(e.target.value)}
-					placeholder="Ask a question..."
-					disabled={loading}
-				/>
-				<button
-					className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-					type="submit"
-					disabled={loading || !input.trim()}
-				>
-					{loading ? 'Sending...' : 'Send'}
-				</button>
-			</form>
-			{error && <div className="text-red-500 mb-2">{error}</div>}
-			{response && (
-				<div className="bg-gray-100 p-4 rounded">
-					<div className="mb-2 whitespace-pre-line">{response.answer}</div>
-					<div className="flex flex-wrap gap-2 mt-2">
-						{response.citations.map(c => (
-							<span key={c.chunk_id} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-								{c.filename} (p{c.page}, chunk {c.chunk_id.split(':').pop()})
-							</span>
-						))}
-					</div>
-				</div>
-			)}
-		</div>
-	);
+		return (
+			<Section title="Chat Across All Docs">
+				<Card>
+					<form onSubmit={handleSend} className="flex gap-2 mb-4 items-end">
+						<Input
+							className="flex-1"
+							value={input}
+							onChange={e => setInput(e.target.value)}
+							placeholder="Ask a question..."
+							disabled={loading}
+						/>
+						<Button type="submit" disabled={loading || !input.trim()}>
+							{loading ? 'Sending...' : 'Send'}
+						</Button>
+					</form>
+					{error && <div className="text-red-500 mb-2 font-medium">{error}</div>}
+					{response && (
+						<div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+							<div className="mb-2 whitespace-pre-line text-gray-800 text-base">{response.answer}</div>
+							<div className="flex flex-wrap gap-2 mt-2">
+								{response.citations.map(c => (
+									<span key={c.chunk_id} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+										{c.filename} (p{c.page}, chunk {c.chunk_id.split(':').pop()})
+									</span>
+								))}
+							</div>
+						</div>
+					)}
+				</Card>
+			</Section>
+		);
 };
 
 export default ChatPage;

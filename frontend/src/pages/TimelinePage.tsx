@@ -1,6 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { getTimeline, TimelineItem } from '../api/timeline';
+import { Section } from '../components/ui/Section';
+import { Card } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
 
 const TimelinePage: React.FC = () => {
 	const [items, setItems] = useState<TimelineItem[]>([]);
@@ -15,41 +18,48 @@ const TimelinePage: React.FC = () => {
 			.finally(() => setLoading(false));
 	}, []);
 
-	return (
-		<div className="max-w-3xl mx-auto py-8">
-			<h1 className="text-2xl font-bold mb-4">Upcoming Deadlines</h1>
-			{loading ? (
-				<div>Loading timeline...</div>
-			) : error ? (
-				<div className="text-red-500">{error}</div>
-			) : !items.length ? (
-				<div className="text-gray-500">No upcoming deadlines.</div>
-			) : (
-				<table className="w-full border bg-white">
-					<thead>
-						<tr className="bg-gray-100">
-							<th className="p-2 text-left">Due Date</th>
-							<th className="p-2 text-left">Label</th>
-							<th className="p-2 text-left">Severity</th>
-							<th className="p-2 text-left">Document</th>
-							<th className="p-2 text-left">Type</th>
-						</tr>
-					</thead>
-					<tbody>
-						{items.map(item => (
-							<tr key={item.id} className="border-t">
-								<td className="p-2">{item.due_date}</td>
-								<td className="p-2">{item.label}</td>
-								<td className={`p-2 ${item.severity === 'high' ? 'text-red-600' : item.severity === 'medium' ? 'text-yellow-600' : 'text-green-600'}`}>{item.severity}</td>
-								<td className="p-2">{item.filename}</td>
-								<td className="p-2">{item.doc_type || '-'}</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			)}
-		</div>
-	);
+		return (
+			<Section title="Upcoming Deadlines">
+				<Card>
+					{loading ? (
+						<div className="text-gray-500">Loading timeline...</div>
+					) : error ? (
+						<div className="text-red-500">{error}</div>
+					) : !items.length ? (
+						<div className="text-gray-500">No upcoming deadlines.</div>
+					) : (
+						<div className="overflow-x-auto">
+							<table className="w-full min-w-[600px] border-separate border-spacing-y-2">
+								<thead>
+									<tr className="bg-gray-50">
+										<th className="p-3 text-left font-semibold text-gray-700">Due Date</th>
+										<th className="p-3 text-left font-semibold text-gray-700">Label</th>
+										<th className="p-3 text-left font-semibold text-gray-700">Severity</th>
+										<th className="p-3 text-left font-semibold text-gray-700">Document</th>
+										<th className="p-3 text-left font-semibold text-gray-700">Type</th>
+									</tr>
+								</thead>
+								<tbody>
+									{items.map(item => (
+										<tr key={item.id} className="bg-white shadow-sm rounded-lg">
+											<td className="p-3">{item.due_date}</td>
+											<td className="p-3">{item.label}</td>
+											<td className="p-3">
+												<Badge color={item.severity === 'high' ? 'danger' : item.severity === 'medium' ? 'warning' : 'success'}>
+													{item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}
+												</Badge>
+											</td>
+											<td className="p-3">{item.filename}</td>
+											<td className="p-3">{item.doc_type || '-'}</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					)}
+				</Card>
+			</Section>
+		);
 };
 
 export default TimelinePage;

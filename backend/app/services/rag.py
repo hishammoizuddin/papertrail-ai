@@ -48,7 +48,8 @@ def chat_with_context(query: str, retrieved_chunks: List[Dict[str, Any]]) -> Dic
 	]
 	system_prompt = (
 		"You are PaperTrail AI. Answer the user's question using only the provided context. "
-		"If you don't know, say so. Always cite sources as [doc:document_id page:page chunk:chunk_index]."
+		"If you don't know, say so. Always cite sources as [doc:document_id page:page chunk:chunk_index]. "
+		"Respond ONLY in valid JSON format as a single JSON object. The word 'json' must appear in your response."
 	)
 	user_prompt = f"Context:\n{context}\n\nQuestion: {query}\nAnswer concisely."
 	resp = openai.chat.completions.create(
