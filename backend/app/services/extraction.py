@@ -16,8 +16,13 @@ CLASSIFY_PROMPT = (
 )
 
 EXTRACT_PROMPT = (
-	"You are an information extraction system. Given the following document text, extract the following fields as strict JSON. "
-	"If information is missing, use null or empty arrays. Never invent.\n"
+	"You are an expert document analyst and summarizer. Given the following document text, perform the following:\n"
+	"1. Write a detailed, multi-paragraph summary of the document, focusing on the main points, context, and any important details.\n"
+	"2. Identify and list all key facts, figures, people, organizations, dates, and deadlines.\n"
+	"3. Extract actionable recommendations or next steps, if any.\n"
+	"4. If information is missing, use null or empty arrays. Never invent.\n"
+	"5. Ignore repeated headers, footers, and irrelevant boilerplate.\n"
+	"Output strict JSON in the following schema.\n"
 	"Schema: {schema}\nText:\n{input}"
 )
 
@@ -29,6 +34,7 @@ EXTRACT_SCHEMA = {
 	"amounts": [{"label": "string|null", "value": "number", "currency": "string|null"}],
 	"dates": [{"label": "string", "date": "YYYY-MM-DD"}],
 	"deadlines": [{"action": "string", "due_date": "YYYY-MM-DD", "severity": "low|medium|high"}],
+	"detailed_summary": "string",  # Multi-paragraph summary
 	"summary_bullets": ["string", "..."],
 	"recommended_actions": ["string", "..."]
 }
@@ -41,6 +47,7 @@ class ExtractedFieldsModel(BaseModel):
 	amounts: list
 	dates: list
 	deadlines: list
+	detailed_summary: str
 	summary_bullets: list
 	recommended_actions: list
 
