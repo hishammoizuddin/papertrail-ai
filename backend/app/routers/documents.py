@@ -125,6 +125,9 @@ async def process_document(document_id: str, background_tasks: BackgroundTasks):
 						due_date_obj = date.fromisoformat(due_date_val)
 					except Exception:
 						due_date_obj = None
+					if due_date_obj is None:
+						# Skip deadlines with missing or invalid due_date
+						continue
 					deadline = Deadline(
 						document_id=doc.id,
 						label=d.get("action", "Deadline"),
