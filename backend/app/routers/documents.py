@@ -118,18 +118,29 @@ async def process_document(document_id: str, background_tasks: BackgroundTasks):
 			doc.error_message = None if extract else "Extraction failed"
 			# Deadlines
 			if extract and extract.get("deadlines"):
+				from datetime import date
 				for d in extract["deadlines"]:
+					due_date_val = d["due_date"]
+					try:
+						due_date_obj = date.fromisoformat(due_date_val)
+					except Exception:
+						due_date_obj = None
 					deadline = Deadline(
 						document_id=doc.id,
 						label=d.get("action", "Deadline"),
-						due_date=d["due_date"],
+						due_date=due_date_obj,
 						severity=d["severity"],
 						action=d.get("action")
 					)
 					session.add(deadline)
 			# Primary due date
 			if extract and extract.get("deadlines"):
-				doc.primary_due_date = extract["deadlines"][0]["due_date"]
+				from datetime import date
+				due_date_str = extract["deadlines"][0]["due_date"]
+				try:
+					doc.primary_due_date = date.fromisoformat(due_date_str)
+				except Exception:
+					doc.primary_due_date = None
 			session.commit()
 			session.refresh(doc)
 			from app.schemas import DocumentBase
