@@ -1,20 +1,21 @@
 import React from 'react';
 
-interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  color?: 'primary' | 'success' | 'danger' | 'warning' | 'default';
-  children: React.ReactNode;
-}
+type BadgeColor = 'primary' | 'success' | 'warning' | 'danger' | 'default';
 
-const colorMap = {
-  primary: 'bg-blue-100 text-blue-800',
-  success: 'bg-green-100 text-green-800',
-  danger: 'bg-red-100 text-red-800',
-  warning: 'bg-yellow-100 text-yellow-800',
-  default: 'bg-gray-100 text-gray-800',
+const Badge: React.FC<{ children: React.ReactNode; color?: BadgeColor }> = ({ children, color = 'default' }) => {
+  const colors = {
+    primary: 'bg-blue-100 text-blue-700',
+    success: 'bg-green-100 text-green-700',
+    warning: 'bg-yellow-100 text-yellow-800',
+    danger: 'bg-red-100 text-red-700',
+    default: 'bg-gray-100 text-gray-700',
+  };
+
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide ${colors[color]}`}>
+      {children}
+    </span>
+  );
 };
 
-export const Badge: React.FC<BadgeProps> = ({ color = 'default', children, className = '', ...props }) => (
-  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colorMap[color]} ${className}`} {...props}>
-    {children}
-  </span>
-);
+export { Badge };

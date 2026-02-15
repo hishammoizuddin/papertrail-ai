@@ -1,15 +1,8 @@
 import React from 'react';
 
-interface CardProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-const Card: React.FC<CardProps> = ({ children, className }) => {
+const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => {
   return (
-    <div
-      className={`p-6 bg-gray-800 rounded-lg shadow-lg hover:scale-105 transform transition duration-300 ${className}`}
-    >
+    <div className={`bg-white rounded-2xl shadow-sm border border-black/5 p-6 hover:shadow-md transition-shadow duration-300 ease-out ${className}`}>
       {children}
     </div>
   );

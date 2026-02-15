@@ -5,14 +5,23 @@ interface ButtonProps {
   onClick?: () => void;
   className?: string;
   disabled?: boolean;
+  variant?: 'primary' | 'secondary' | 'ghost';
 }
 
-const Button: React.FC<ButtonProps> = ({ children, onClick, className, disabled }) => {
+const Button: React.FC<ButtonProps> = ({ children, onClick, className = '', disabled, variant = 'primary' }) => {
+  const baseStyles = "px-5 py-2.5 rounded-full font-medium text-sm transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed";
+
+  const variants = {
+    primary: "bg-[#0071E3] text-white hover:bg-[#0077ED] shadow-sm hover:shadow-md",
+    secondary: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50",
+    ghost: "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-black",
+  };
+
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`px-6 py-2 rounded-lg bg-blue-500 text-white font-semibold hover:bg-blue-600 active:scale-95 transform transition duration-200 ${disabled ? 'opacity-60 cursor-not-allowed' : ''} ${className}`}
+      className={`${baseStyles} ${variants[variant]} ${className}`}
     >
       {children}
     </button>

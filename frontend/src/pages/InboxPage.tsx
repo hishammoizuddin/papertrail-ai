@@ -8,6 +8,7 @@ import { Badge } from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import Card from '../components/ui/Card';
 
 
 const statusBadge = (status: string) => {
@@ -67,51 +68,62 @@ const InboxPage: React.FC = () => {
 
 	return (
 		<Section title="Inbox">
-			<div className="bg-gradient-to-br from-blue-50 to-white rounded-2xl shadow-xl p-10 max-w-6xl mx-auto animate-fade-in">
+			<div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
 				<UploadDropzone onUpload={handleUpload} uploading={uploading} />
-				{error && <div className="text-red-500 my-4 font-medium animate-shake">{error}</div>}
+
+				{error && <div className="text-red-500 my-4 font-medium animate-shake text-center">{error}</div>}
+
 				{loading ? (
-					<div className="my-6 text-gray-500 text-lg animate-pulse">Loading documents...</div>
+					<div className="flex justify-center my-12 text-gray-400 font-medium animate-pulse">Loading documents...</div>
 				) : (
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-8">
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 						<AnimatePresence>
 							{documents.map((doc, idx) => (
 								<motion.div
 									key={doc.id}
-									initial={{ opacity: 0, y: 30 }}
+									initial={{ opacity: 0, y: 20 }}
 									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: 30 }}
-									transition={{ delay: idx * 0.05, duration: 0.4, type: 'spring' }}
-									whileHover={{ scale: 1.03, boxShadow: '0 8px 32px 0 rgba(0,0,0,0.12)' }}
-									className="bg-white rounded-xl shadow-lg p-6 flex flex-col gap-4 cursor-pointer border-2 border-transparent hover:border-blue-400 transition-all group"
+									exit={{ opacity: 0, y: 20 }}
+									transition={{ delay: idx * 0.05, duration: 0.3 }}
 								>
-									<Link to={`/documents/${doc.id}`} className="flex-1 flex flex-col gap-2">
-										<div className="flex items-center gap-2">
-											<svg className="w-6 h-6 text-blue-500 group-hover:animate-bounce" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7v10M17 7v10M5 17h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-											<span className="text-lg font-bold text-blue-900 truncate">{doc.filename}</span>
+									<Card className="h-full flex flex-col justify-between group hover:ring-2 hover:ring-[#0071E3]/20 transition-all p-5">
+										<Link to={`/documents/${doc.id}`} className="block space-y-3">
+											<div className="flex items-start justify-between">
+												<div className="p-2 bg-blue-50 text-[#0071E3] rounded-lg">
+													<svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+												</div>
+												{statusBadge(doc.status)}
+											</div>
+											<div>
+												<h3 className="font-semibold text-gray-900 truncate pr-2" title={doc.filename}>{doc.filename}</h3>
+												<p className="text-xs text-gray-500 mt-1">{new Date(doc.created_at).toLocaleDateString()} • {doc.doc_type || 'Unknown'}</p>
+											</div>
+										</Link>
+
+										<div className="mt-5 pt-4 border-t border-gray-100">
+											<Button
+												variant="secondary"
+												className="w-full text-xs py-2 bg-gray-50 hover:bg-gray-100 border-0"
+												onClick={() => handleProcess(doc.id)}
+												disabled={doc.status === 'processing'}
+											>
+												{doc.status === 'extracted' ? 'Re-process' : doc.status === 'processing' ? 'Processing...' : 'Process Document'}
+											</Button>
 										</div>
-										<div className="flex gap-2 items-center mt-1">
-											{statusBadge(doc.status)}
-											<span className="text-xs text-gray-500">{doc.doc_type || '-'}</span>
-										</div>
-										<div className="text-xs text-gray-400 mt-2">Uploaded: {new Date(doc.created_at).toLocaleString()}</div>
-									</Link>
-									<div className="flex gap-2 mt-2">
-										<Button
-											className="flex-1 py-1 text-sm bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white shadow"
-											onClick={() => handleProcess(doc.id)}
-											disabled={doc.status === 'processing'}
-										>
-											{doc.status === 'extracted' ? 'Re-extract' : doc.status === 'processing' ? 'Processing...' : 'Process'}
-										</Button>
-									</div>
+									</Card>
 								</motion.div>
 							))}
 						</AnimatePresence>
 					</div>
 				)}
 				{!loading && documents.length === 0 && (
-					<div className="text-gray-400 text-center mt-10 text-lg animate-fade-in">No documents uploaded yet.</div>
+					<div className="text-center py-12">
+						<div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+							<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+						</div>
+						<h3 className="text-gray-900 font-medium text-lg">No documents yet</h3>
+						<p className="text-gray-500">Upload a PDF to get started with PaperTrail AI.</p>
+					</div>
 				)}
 			</div>
 		</Section>

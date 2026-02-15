@@ -1,30 +1,31 @@
-// Centralized theme for PaperTrail AI
+// Centralized theme for PaperTrail AI - Apple Aesthetic
 export const theme = {
   colors: {
-    primary: '#2563eb', // blue-600
-    primaryDark: '#1d4ed8', // blue-700
-    accent: '#f59e42', // orange-400
-    background: '#f8fafc', // gray-50
-    surface: '#fff',
-    border: '#e5e7eb', // gray-200
-    text: '#1e293b', // slate-800
-    muted: '#64748b', // slate-400
-    error: '#ef4444', // red-500
-    success: '#22c55e', // green-500
-    warning: '#facc15', // yellow-400
+    primary: '#0071E3', // Apple Blue
+    primaryDark: '#005BB5', // Darker Apple Blue
+    accent: '#BF40BF', // Smooth Purple
+    background: '#F5F5F7', // Apple Light Gray background
+    surface: '#FFFFFF', // Pure White surface
+    border: '#D2D2D7', // Apple Border Gray
+    text: '#1D1D1F', // Apple Primary Text
+    muted: '#86868B', // Apple Secondary Text
+    error: '#FF3B30', // Apple Red
+    success: '#34C759', // Apple Green
+    warning: '#FFCC00', // Apple Yellow
   },
   fontFamily: {
-    sans: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif',
+    sans: 'Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   },
   borderRadius: {
-    sm: '0.375rem',
-    md: '0.5rem',
-    lg: '0.75rem',
+    sm: '0.5rem', // 8px
+    md: '0.75rem', // 12px
+    lg: '1.25rem', // 20px
     full: '9999px',
   },
   shadow: {
     sm: '0 1px 2px 0 rgba(0,0,0,0.05)',
-    md: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
-    lg: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+    md: '0 4px 12px rgba(0,0,0,0.08)',
+    lg: '0 12px 24px rgba(0,0,0,0.12)',
+    xl: '0 20px 40px rgba(0,0,0,0.15)', // For modals/popovers
   },
 };
