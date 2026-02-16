@@ -89,24 +89,41 @@ const GraphView: React.FC = () => {
                                 // Custom canvas rendering for premium feel
                                 nodeCanvasObject={(node: any, ctx, globalScale) => {
                                     const label = node.label;
-                                    const fontSize = 12 / globalScale;
-                                    ctx.font = `${fontSize}px Sans-Serif`;
+                                    const fontSize = 10 / globalScale; // Slightly smaller font
+                                    ctx.font = `${fontSize}px Inter, Sans-Serif`;
                                     const textWidth = ctx.measureText(label).width;
-                                    const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
+                                    const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.4);
 
-                                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
                                     if (node.x && node.y) {
-                                        ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
-                                        ctx.textAlign = 'center';
-                                        ctx.textBaseline = 'middle';
-                                        ctx.fillStyle = node.color;
-                                        ctx.fillText(label, node.x, node.y);
-
-                                        // Draw circle node
+                                        // Draw circle node first (reduced size)
                                         ctx.beginPath();
-                                        ctx.arc(node.x, node.y, node.val ? 4 : 2, 0, 2 * Math.PI, false);
+                                        const radius = 3; // Fixed, smaller radius
+                                        ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
                                         ctx.fillStyle = node.color;
                                         ctx.fill();
+
+                                        // Optional: Add a subtle glow or border
+                                        ctx.strokeStyle = '#fff';
+                                        ctx.lineWidth = 1 / globalScale;
+                                        ctx.stroke();
+
+                                        // Draw text label BELOW the node
+                                        const textYOffset = 6; // Push text down
+
+                                        // Text background
+                                        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                                        ctx.fillRect(
+                                            node.x - bckgDimensions[0] / 2,
+                                            node.y + textYOffset - bckgDimensions[1] / 2 + 2,
+                                            bckgDimensions[0],
+                                            bckgDimensions[1]
+                                        );
+
+                                        // Text
+                                        ctx.textAlign = 'center';
+                                        ctx.textBaseline = 'middle';
+                                        ctx.fillStyle = '#1D1D1F';
+                                        ctx.fillText(label, node.x, node.y + textYOffset + 2);
                                     }
                                 }}
                             />

@@ -44,26 +44,38 @@ const InboxPage: React.FC = () => {
 		fetchDocs();
 	}, []);
 
+	const handleProcess = async (docId: string, isAuto = false) => {
+		setError(null);
+
+		// Optimistic update: set status to processing immediately
+		setDocuments(prev => prev.map(d =>
+			d.id === docId ? { ...d, status: 'processing' } : d
+		));
+
+		try {
+			await processDocument(docId);
+			// Refresh documents to get the latest status
+			fetchDocs();
+		} catch (e: any) {
+			setError(e.message || 'Processing failed');
+			// Revert status on error (optional, but good practice, or just let fetchDocs fix it)
+			fetchDocs();
+		}
+	};
+
 	const handleUpload = async (file: File) => {
 		setUploading(true);
 		setError(null);
 		try {
 			const doc = await uploadDocument(file);
 			setDocuments((prev) => [doc, ...prev]);
+
+			// Auto-process immediately
+			await handleProcess(doc.id, true);
 		} catch (e: any) {
 			setError(e.message || 'Upload failed');
 		} finally {
 			setUploading(false);
-		}
-	};
-
-	const handleProcess = async (docId: string) => {
-		setError(null);
-		try {
-			await processDocument(docId);
-			fetchDocs();
-		} catch (e: any) {
-			setError(e.message || 'Processing failed');
 		}
 	};
 
@@ -110,14 +122,22 @@ const InboxPage: React.FC = () => {
 										</Link>
 
 										<div className="mt-5 pt-4 border-t border-gray-100">
-											<Button
-												variant="secondary"
-												className="w-full text-xs py-2 bg-gray-50 hover:bg-gray-100 border-0"
-												onClick={() => handleProcess(doc.id)}
-												disabled={doc.status === 'processing'}
-											>
-												{doc.status === 'extracted' ? 'Re-process' : doc.status === 'processing' ? 'Processing...' : 'Process Document'}
-											</Button>
+											<div className="mt-5 pt-4 border-t border-gray-100">
+												{doc.status === 'processing' ? (
+													<div className="w-full py-2 flex items-center justify-center gap-2 text-blue-600 bg-blue-50/50 rounded-lg">
+														<div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+														<span className="text-xs font-medium">Processing...</span>
+													</div>
+												) : (
+													<Button
+														variant="secondary"
+														className="w-full text-xs py-2 bg-gray-50 hover:bg-gray-100 border-0"
+														onClick={() => handleProcess(doc.id)}
+													>
+														{doc.status === 'extracted' ? 'Re-process' : 'Process Document'}
+													</Button>
+												)}
+											</div>
 										</div>
 									</Card>
 								</motion.div>

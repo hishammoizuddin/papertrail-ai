@@ -15,7 +15,6 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <Link to="/" className="text-xl font-semibold tracking-tight">PaperTrail AI</Link>
           <Link to="/chat" className={isActive('/chat')}>Chat</Link>
           <Link to="/inbox" className={isActive('/inbox')}>Inbox</Link>
-          <Link to="/timeline" className={isActive('/timeline')}>Timeline</Link>
           <Link to="/graph" className={isActive('/graph')}>Brain</Link>
         </div>
       </nav>
