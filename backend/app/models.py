@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime, date
-from pydantic import Json
+from pydantic import BaseModel
 
 class Document(SQLModel, table=True):
     id: str = Field(primary_key=True, index=True)
@@ -34,3 +34,29 @@ class Deadline(SQLModel, table=True):
     severity: str
     action: Optional[str] = None
     document: Optional[Document] = Relationship(back_populates="deadlines")
+
+from sqlalchemy import JSON, Column
+
+class GraphNode(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    label: str
+    type: str  # 'document', 'person', 'issuer', 'organization'
+    properties: Optional[dict] = Field(default={}, sa_column=Column(JSON))
+
+class GraphEdge(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    source: str = Field(foreign_key="graphnode.id")
+    target: str = Field(foreign_key="graphnode.id")
+    relation: str
+
+class ActionItem(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    document_id: str = Field(foreign_key="document.id")
+    type: str # 'email', 'calendar', 'todo', 'review'
+    description: str
+    status: str = 'pending' # 'pending', 'completed', 'dismissed'
+    payload: Optional[dict] = Field(default={}, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    document: Optional[Document] = Relationship()
+

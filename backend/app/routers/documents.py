@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from app.models import Document, Chunk, Deadline
 from app.db import get_session, init_db
 from app.schemas import DocumentBase
-from app.services import pdf, ocr, chunking, embeddings, pinecone_store, extraction
+from app.services import pdf, ocr, chunking, embeddings, pinecone_store, extraction, graph
 import os
 import shutil
 import uuid
@@ -45,7 +45,7 @@ async def upload_document(file: UploadFile = File(...)):
 		session.commit()
 		session.refresh(doc)
 		from app.schemas import DocumentBase
-		return DocumentBase.model_validate(doc.dict())
+		return DocumentBase.model_validate(doc.model_dump())
 
 @router.post("/{document_id}/process")
 async def process_document(document_id: str, background_tasks: BackgroundTasks):
@@ -146,8 +146,23 @@ async def process_document(document_id: str, background_tasks: BackgroundTasks):
 					doc.primary_due_date = None
 			session.commit()
 			session.refresh(doc)
+   
+			# Trigger graph rebuild to include new nodes/edges
+			try:
+				graph.rebuild_graph(session)
+			except Exception as e:
+				print(f"Graph rebuild warning: {e}")
+
 			from app.schemas import DocumentBase
-			return DocumentBase.model_validate(doc.dict())
+			print(f"DEBUG: doc type: {type(doc)}")
+			try:
+				print(f"DEBUG: doc.id: {doc.id}")
+				print(f"DEBUG: doc.__dict__: {doc.__dict__}")
+				print(f"DEBUG: doc.model_dump(): {doc.model_dump()}")
+			except Exception as e:
+				print(f"DEBUG: Error inspecting doc: {e}")
+			
+			return DocumentBase.model_validate(doc.model_dump())
 		except Exception as e:
 			doc.status = "error"
 			doc.error_message = str(e)

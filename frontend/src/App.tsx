@@ -7,6 +7,7 @@ import ChatPage from './pages/ChatPage';
 import DocumentDetailPage from './pages/DocumentDetailPage';
 import InboxPage from './pages/InboxPage';
 import TimelinePage from './pages/TimelinePage';
+import GraphView from './components/GraphView';
 
 const App = () => {
   return (
@@ -37,6 +38,7 @@ const App = () => {
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/timeline" element={<TimelinePage />} />
+          <Route path="/graph" element={<GraphView />} />
           <Route path="/documents/:id" element={<DocumentDetailPage />} />
           <Route path="*" element={
             <div className="flex flex-col items-center justify-center min-h-[60vh]">

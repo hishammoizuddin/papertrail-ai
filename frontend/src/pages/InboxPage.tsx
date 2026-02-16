@@ -9,6 +9,7 @@ import Button from '../components/ui/Button';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Card from '../components/ui/Card';
+import ActionCenter from '../components/ActionCenter';
 
 
 const statusBadge = (status: string) => {
@@ -69,7 +70,15 @@ const InboxPage: React.FC = () => {
 	return (
 		<Section title="Inbox">
 			<div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
-				<UploadDropzone onUpload={handleUpload} uploading={uploading} />
+				{/* Dashboard Widget Area */}
+				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+					<div className="lg:col-span-2">
+						<UploadDropzone onUpload={handleUpload} uploading={uploading} />
+					</div>
+					<div className="lg:col-span-1">
+						<ActionCenter />
+					</div>
+				</div>
 
 				{error && <div className="text-red-500 my-4 font-medium animate-shake text-center">{error}</div>}
 

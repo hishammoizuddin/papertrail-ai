@@ -1,9 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import documents, chat, timeline
+from app.routers import documents, chat, timeline, graph, actions
+from app.db import init_db
+from contextlib import asynccontextmanager
 import os
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 origins = [
     "http://localhost:5173",
@@ -20,6 +27,8 @@ app.add_middleware(
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(timeline.router, prefix="/api/timeline", tags=["timeline"])
+app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
+app.include_router(actions.router, prefix="/api/actions", tags=["actions"])
 
 @app.get("/api/health")
 def health():

@@ -32,33 +32,58 @@ def retrieve_chunks(query: str, top_k: int = 10, document_id: Optional[str] = No
 			})
 	return results
 
-def chat_with_context(query: str, retrieved_chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
-	context = "\n\n".join([
-		f"[doc:{c['document_id']} page:{c['page']} chunk:{c['chunk_index']}] {c['text']}"
-		for c in retrieved_chunks
-	])
-	citations = [
-		{
-			"document_id": c["document_id"],
-			"filename": c["filename"],
-			"page": c["page"],
-			"chunk_id": c["chunk_id"]
-		}
-		for c in retrieved_chunks
-	]
-	system_prompt = (
-		"You are PaperTrail AI. Answer the user's question using only the provided context. "
-		"If you don't know, say so. Always cite sources as [doc:document_id page:page chunk:chunk_index]. "
-		"Respond ONLY in valid JSON format as a single JSON object. The word 'json' must appear in your response."
-	)
-	user_prompt = f"Context:\n{context}\n\nQuestion: {query}\nAnswer concisely."
-	resp = openai.chat.completions.create(
-		model="gpt-3.5-turbo-1106",
-		messages=[
-			{"role": "system", "content": system_prompt},
-			{"role": "user", "content": user_prompt}
-		],
-		response_format={"type": "json_object"}
-	)
-	answer = resp.choices[0].message.content
-	return {"answer": answer, "citations": citations}
+def chat_with_context(query: str, retrieved_chunks: List[Dict[str, Any]], image_url: Optional[str] = None) -> Dict[str, Any]:
+    context = "\n\n".join([
+        f"[doc:{c['document_id']} page:{c['page']} chunk:{c['chunk_index']}] {c['text']}"
+        for c in retrieved_chunks
+    ])
+    
+    citations = [
+        {
+            "document_id": c["document_id"],
+            "filename": c["filename"],
+            "page": c["page"],
+            "chunk_id": c["chunk_id"]
+        }
+        for c in retrieved_chunks
+    ]
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are PaperTrail AI. Answer the user's question using only the provided context. "
+                "If you don't know, say so. Always cite sources as [doc:document_id page:page chunk:chunk_index]. "
+                "Respond ONLY in valid JSON format as a single JSON object. The word 'json' must appear in your response."
+            )
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"Context:\n{context}\n\nQuestion: {query}\nAnswer concisely."}
+            ]
+        }
+    ]
+
+    if image_url:
+        messages[1]["content"].append({
+            "type": "image_url",
+            "image_url": {"url": image_url}
+        })
+
+    model = "gpt-4o" if image_url else "gpt-3.5-turbo-1106"
+
+    resp = openai.chat.completions.create(
+        model=model,
+        messages=messages,
+        response_format={"type": "json_object"}
+    )
+    
+    # Clean up response if needed (sometimes JSON is wrapped in markdown)
+    content = resp.choices[0].message.content
+    if content.startswith("```json"):
+        content = content[7:-3]
+    elif content.startswith("```"):
+        content = content[3:-3]
+        
+    return {"answer": content, "citations": citations}
