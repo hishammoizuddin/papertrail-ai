@@ -14,6 +14,7 @@ def rebuild_graph(session: Session):
     docs = session.exec(select(Document)).all()
     
     unique_nodes = {} # id -> GraphNode
+    all_edges = []
 
     for doc in docs:
         # Document Node
@@ -41,7 +42,6 @@ def rebuild_graph(session: Session):
 
             doc_node = GraphNode(id=doc.id, label=doc.filename, type="document", properties=doc_props)
             unique_nodes[doc.id] = doc_node
-            session.add(doc_node)
         
         if not doc.extracted_json:
             continue
@@ -58,11 +58,10 @@ def rebuild_graph(session: Session):
                 if issuer_id not in unique_nodes:
                     node = GraphNode(id=issuer_id, label=issuer_name, type="issuer")
                     unique_nodes[issuer_id] = node
-                    session.add(node)
                 
                 # Edge: Document -> ISSUED_BY -> Issuer
                 edge = GraphEdge(source=doc.id, target=issuer_id, relation="ISSUED_BY")
-                session.add(edge)
+                all_edges.append(edge)
 
             # Category Node
             if data.get("category"):
@@ -71,11 +70,10 @@ def rebuild_graph(session: Session):
                 if cat_id not in unique_nodes:
                     node = GraphNode(id=cat_id, label=cat_name, type="category")
                     unique_nodes[cat_id] = node
-                    session.add(node)
                 
                 # Edge: Document -> IN_CATEGORY -> Category
                 edge = GraphEdge(source=doc.id, target=cat_id, relation="IN_CATEGORY")
-                session.add(edge)
+                all_edges.append(edge)
 
             # Tag Nodes
             for tag in data.get("tags", []):
@@ -83,11 +81,10 @@ def rebuild_graph(session: Session):
                 if tag_id not in unique_nodes:
                     node = GraphNode(id=tag_id, label=tag, type="tag")
                     unique_nodes[tag_id] = node
-                    session.add(node)
                 
                 # Edge: Document -> TAGGED -> Tag
                 edge = GraphEdge(source=doc.id, target=tag_id, relation="TAGGED")
-                session.add(edge)
+                all_edges.append(edge)
 
             # People Nodes
             for person in data.get("people", []):
@@ -96,11 +93,10 @@ def rebuild_graph(session: Session):
                 if person_id not in unique_nodes:
                     node = GraphNode(id=person_id, label=person_name, type="person", properties={"role": person.get("role")})
                     unique_nodes[person_id] = node
-                    session.add(node)
                 
                 # Edge: Document -> MENTIONS -> Person
                 edge = GraphEdge(source=doc.id, target=person_id, relation="MENTIONS")
-                session.add(edge)
+                all_edges.append(edge)
 
             # Organization Nodes (Entities)
             for org in data.get("organizations", []):
@@ -113,11 +109,10 @@ def rebuild_graph(session: Session):
                 if org_id not in unique_nodes:
                     node = GraphNode(id=org_id, label=org_name, type="organization", properties={"type": org.get("type")})
                     unique_nodes[org_id] = node
-                    session.add(node)
                 
                 # Edge: Document -> MENTIONS -> Organization
                 edge = GraphEdge(source=doc.id, target=org_id, relation="MENTIONS")
-                session.add(edge)
+                all_edges.append(edge)
 
             # Location Nodes
             for loc in data.get("locations", []):
@@ -126,15 +121,20 @@ def rebuild_graph(session: Session):
                 if loc_id not in unique_nodes:
                     node = GraphNode(id=loc_id, label=loc_name, type="location", properties={"type": loc.get("type")})
                     unique_nodes[loc_id] = node
-                    session.add(node)
                 
                 # Edge: Document -> LOCATED_AT -> Location
                 edge = GraphEdge(source=doc.id, target=loc_id, relation="LOCATED_AT")
-                session.add(edge)
+                all_edges.append(edge)
                 
         except Exception as e:
             print(f"Error parsing graph data for doc {doc.id}: {e}")
 
+    # Bulk insert nodes first
+    session.add_all(unique_nodes.values())
+    session.flush() # Ensure nodes are committed/flushed before edges (foreign keys)
+    
+    # Bulk insert edges
+    session.add_all(all_edges)
     session.commit()
 
 def get_graph_data(session: Session):

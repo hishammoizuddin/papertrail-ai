@@ -5,7 +5,9 @@ pydantic
 python-dotenv
 PyMuPDF
 openai
-pinecone-client
+pinecone
 pytesseract
 pillow
 python-multipart
+pymysql
+cryptography
