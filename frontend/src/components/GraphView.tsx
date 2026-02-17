@@ -6,6 +6,8 @@ import { Badge } from './ui/Badge';
 import Button from './ui/Button';
 import axios from 'axios';
 import DossierPanel, { DossierData } from './DossierPanel';
+import { BookOpen } from 'lucide-react';
+
 
 interface Node {
     id: string;
@@ -193,7 +195,7 @@ const GraphView: React.FC = () => {
             setHighlightedNodes(new Set());
             setHighlightedLinks(new Set());
             // Fetch dossier if it's an entity node (or even document node)
-            fetchDossier(node.id);
+            // fetchDossier(node.id);  <-- DISABLED AUTO-OPEN
         }
     };
 
@@ -415,6 +417,14 @@ const GraphView: React.FC = () => {
                                         {selectedNode.type}
                                     </Badge>
                                 </div>
+
+                                <Button
+                                    onClick={() => fetchDossier(selectedNode.id)}
+                                    className="w-full flex items-center justify-center gap-2"
+                                >
+                                    <BookOpen className="w-4 h-4" />
+                                    View Dossier
+                                </Button>
 
                                 {selectedNode.properties && Object.keys(selectedNode.properties).length > 0 && (
                                     <div>
