@@ -53,6 +53,8 @@ def upload_document(file: UploadFile = File(...)):
 			session.refresh(doc)
 			from app.schemas import DocumentBase
 			return DocumentBase.model_validate(doc.model_dump())
+	except HTTPException as he:
+		raise he
 	except Exception as e:
 		with open("backend_errors.log", "a") as log:
 			log.write(f"Upload error: {str(e)}\n")

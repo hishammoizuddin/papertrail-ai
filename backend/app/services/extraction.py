@@ -16,12 +16,14 @@ CLASSIFY_PROMPT = (
 )
 
 EXTRACT_PROMPT = (
-	"You are an expert document analyst and summarizer. Given the following document text, perform the following:\n"
-	"1. Write a detailed, multi-paragraph summary of the document, focusing on the main points, context, and any important details.\n"
-	"2. Identify and list all key facts, figures, people, organizations, dates, and deadlines.\n"
-	"3. Extract actionable recommendations or next steps, if any.\n"
-	"4. If information is missing, use null or empty arrays. Never invent.\n"
-	"5. Ignore repeated headers, footers, and irrelevant boilerplate.\n"
+	"You are an expert document analyst and personal assistant. Your goal is to extract structured data to create a perfect Mind Map and a highly actionable Task List.\n"
+	"Given the document text, perform the following:\n"
+	"1. **Classify & Tag**: Identify the specific document type (e.g., 'Invoice', 'Lease Agreement', 'Medical Record'), a broad category (e.g., 'Finance', 'Legal', 'Health', 'Home'), and add relevant tags (e.g., 'Tax 2024', 'Vehicle', 'Urgent').\n"
+	"2. **Summarize**: Write a detailed, multi-paragraph summary.\n"
+	"3. **Entities**: Extract all people, organizations, and locations mentioned.\n"
+	"4. **Actionable Tasks**: Identify specific deadlines and recommended next steps. Be precise with actions (e.g., 'Pay $50.00 to Comcast' instead of just 'Pay bill').\n"
+	"5. **Priority**: Assign a priority score (1-10) based on urgency and importance.\n"
+	"6. If information is missing, use null or empty arrays. Never invent.\n"
 	"Output strict JSON in the following schema.\n"
 	"Schema: {schema}\nText:\n{input}"
 )
@@ -29,7 +31,12 @@ EXTRACT_PROMPT = (
 EXTRACT_SCHEMA = {
 	"doc_type": "string",
 	"issuer": "string|null",
+	"category": "string|null",
+	"tags": ["string"],
+	"priority_score": "number", # 1-10
 	"people": [{"name": "string", "role": "string|null"}],
+	"organizations": [{"name": "string", "type": "string|null"}],
+	"locations": [{"name": "string", "type": "string|null"}],
 	"addresses": [{"label": "string|null", "address": "string"}],
 	"amounts": [{"label": "string|null", "value": "number", "currency": "string|null"}],
 	"dates": [{"label": "string", "date": "YYYY-MM-DD"}],
@@ -42,7 +49,12 @@ EXTRACT_SCHEMA = {
 class ExtractedFieldsModel(BaseModel):
 	doc_type: str
 	issuer: Optional[str] = None
+	category: Optional[str] = None
+	tags: Optional[list] = None
+	priority_score: Optional[int] = None
 	people: Optional[list] = None
+	organizations: Optional[list] = None
+	locations: Optional[list] = None
 	addresses: Optional[list] = None
 	amounts: Optional[list] = None
 	dates: Optional[list] = None
@@ -74,7 +86,7 @@ def extract_fields(text: str) -> Optional[Dict[str, Any]]:
 	logging.info(f"[OpenAI] Extraction prompt: {prompt[:1000]}")
 	try:
 		resp = openai.chat.completions.create(
-			model="gpt-3.5-turbo-1106",
+			model="gpt-4o",
 			messages=[{"role": "system", "content": "Extract fields as strict JSON."},
 					  {"role": "user", "content": prompt}],
 			response_format={"type": "json_object"}
@@ -86,7 +98,7 @@ def extract_fields(text: str) -> Optional[Dict[str, Any]]:
 			# Note: Pydantic v2 model_validate does not mutate in-place usually if dict is passed directly unless we instantiate model.
 			# But here we just want to ensure structure is roughly correct.
 			# We'll manually fix None -> [] for safety.
-			for k in ["people", "addresses", "amounts", "dates", "deadlines", "summary_bullets", "recommended_actions"]:
+			for k in ["people", "organizations", "locations", "tags", "addresses", "amounts", "dates", "deadlines", "summary_bullets", "recommended_actions"]:
 				if k not in data or data[k] is None:
 					data[k] = []
 			

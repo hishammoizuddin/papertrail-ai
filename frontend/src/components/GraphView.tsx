@@ -38,11 +38,49 @@ const GraphView: React.FC = () => {
                 const graphData = await res.json();
 
                 // Process data for visualization
-                const nodes = graphData.nodes.map((n: any) => ({
-                    ...n,
-                    val: n.type === 'document' ? 10 : n.type === 'issuer' ? 15 : 8,
-                    color: n.type === 'document' ? '#0071E3' : n.type === 'issuer' ? '#34C759' : '#AF52DE'
-                }));
+                const nodes = graphData.nodes.map((n: any) => {
+                    let val = 8;
+                    let color = '#AF52DE'; // Default purple
+
+                    switch (n.type) {
+                        case 'document':
+                            val = 15;
+                            color = '#0071E3'; // Blue
+                            break;
+                        case 'issuer':
+                            val = 12;
+                            color = '#34C759'; // Green
+                            break;
+                        case 'category':
+                            val = 10;
+                            color = '#FF9500'; // Orange
+                            break;
+                        case 'tag':
+                            val = 6;
+                            color = '#FF2D55'; // Pink/Red
+                            break;
+                        case 'organization':
+                            val = 10;
+                            color = '#5856D6'; // Indigo
+                            break;
+                        case 'location':
+                            val = 8;
+                            color = '#5AC8FA'; // Light Blue
+                            break;
+                        case 'person':
+                            val = 8;
+                            color = '#AF52DE'; // Purple
+                            break;
+                    }
+
+                    return {
+                        ...n,
+                        val,
+                        color,
+                        // Add extracted properties for easy access
+                        properties: n.properties || {}
+                    };
+                });
 
                 setData({ nodes, links: graphData.links });
             } catch (error) {
@@ -152,11 +190,36 @@ const GraphView: React.FC = () => {
                                         {selectedNode.type}
                                     </Badge>
                                 </div>
-                                {selectedNode.properties && (
+                                {selectedNode.properties && Object.keys(selectedNode.properties).length > 0 && (
                                     <div>
                                         <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Properties</div>
-                                        <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg text-sm font-mono text-gray-600 dark:text-gray-400 overflow-auto max-h-40">
-                                            {JSON.stringify(selectedNode.properties, null, 2)}
+                                        <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg text-sm text-gray-600 dark:text-gray-400 overflow-auto max-h-60 space-y-2">
+                                            {selectedNode.properties.summary && (
+                                                <div className="mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">
+                                                    <span className="font-semibold block text-xs mb-1">Summary</span>
+                                                    {selectedNode.properties.summary}
+                                                </div>
+                                            )}
+                                            {selectedNode.properties.priority && (
+                                                <div className="flex justify-between">
+                                                    <span className="font-semibold text-xs">Priority</span>
+                                                    <Badge color={selectedNode.properties.priority >= 8 ? 'danger' : selectedNode.properties.priority >= 5 ? 'warning' : 'success'}>
+                                                        {selectedNode.properties.priority}/10
+                                                    </Badge>
+                                                </div>
+                                            )}
+                                            {Object.entries(selectedNode.properties).map(([key, value]) => {
+                                                if (['summary', 'priority'].includes(key)) return null;
+                                                // Don't show nulls or complex objects blindly
+                                                if (value === null || typeof value === 'object') return null;
+
+                                                return (
+                                                    <div key={key} className="flex justify-between border-b border-gray-100 dark:border-gray-800 py-1 last:border-0">
+                                                        <span className="font-medium text-xs capitalize">{key.replace('_', ' ')}</span>
+                                                        <span className="text-right truncate max-w-[150px]">{String(value)}</span>
+                                                    </div>
+                                                )
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -173,6 +236,10 @@ const GraphView: React.FC = () => {
                         <div className="space-y-2 text-sm text-gray-800 dark:text-gray-300">
                             <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#0071E3]"></span> Document</div>
                             <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#34C759]"></span> Issuer</div>
+                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#FF9500]"></span> Category</div>
+                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#5856D6]"></span> Organization</div>
+                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#FF2D55]"></span> Tag</div>
+                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#5AC8FA]"></span> Location</div>
                             <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#AF52DE]"></span> Person</div>
                         </div>
                     </Card>

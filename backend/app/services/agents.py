@@ -20,20 +20,26 @@ def generate_actions_for_document(session: Session, doc: Document):
                 payload={
                     "title": deadline.get("action"),
                     "date": deadline.get("due_date"),
-                    "severity": deadline.get("severity")
+                    "severity": deadline.get("severity"),
+                    "priority": data.get("priority_score"),
+                    "tags": data.get("tags", [])
                 }
             )
             session.add(action)
 
         # 2. Recommended Actions -> Todo
         for rec in data.get("recommended_actions", []):
-             action = ActionItem(
+            action = ActionItem(
                 document_id=doc.id,
                 type="todo",
-                description=f"Recommendation: {rec}",
-                payload={"text": rec}
+                description=rec, # Use the raw recommendation as description
+                payload={
+                     "text": rec,
+                     "priority": data.get("priority_score"),
+                     "tags": data.get("tags", [])
+                }
             )
-             session.add(action)
+            session.add(action)
 
         # 3. Expiry / Renewal Dates -> Calendar / Todo
         for date_item in data.get("dates", []):
@@ -70,7 +76,9 @@ def generate_actions_for_document(session: Session, doc: Document):
                         "title": f"Renew {doc.doc_type or 'Document'}",
                         "date": date_val,
                         "severity": severity,
-                        "label": date_item.get("label")
+                        "label": date_item.get("label"),
+                        "priority": data.get("priority_score"),
+                        "tags": data.get("tags", [])
                     }
                 )
                  session.add(action)
