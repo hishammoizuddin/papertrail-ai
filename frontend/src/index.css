@@ -6,7 +6,7 @@
 
 @layer base {
   body {
-    @apply bg-[#F5F5F7] text-[#1D1D1F] antialiased;
+    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -15,7 +15,7 @@
 
 @layer utilities {
   .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/20;
+    @apply bg-white/70 backdrop-blur-xl border border-white/20 dark:bg-gray-900/70 dark:border-white/10;
   }
 
   .glass-dark {
@@ -48,6 +48,7 @@
   from {
     transform: scale(0.95);
     opacity: 0;
+    transform: scale(0.95);
   }
 
   to {

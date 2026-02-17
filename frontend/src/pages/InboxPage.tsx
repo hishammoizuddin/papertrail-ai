@@ -90,7 +90,7 @@ const InboxPage: React.FC = () => {
 	};
 
 	return (
-		<Section title="Inbox">
+		<Section title="Dashboard">
 			<div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
 				{/* Dashboard Widget Area */}
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -117,31 +117,31 @@ const InboxPage: React.FC = () => {
 									exit={{ opacity: 0, y: 20 }}
 									transition={{ delay: idx * 0.05, duration: 0.3 }}
 								>
-									<Card className="h-full flex flex-col justify-between group hover:ring-2 hover:ring-[#0071E3]/20 transition-all p-5">
+									<Card className="h-full flex flex-col justify-between group hover:ring-2 hover:ring-[#0071E3]/20 transition-all p-5 dark:bg-gray-800 dark:border-gray-700">
 										<Link to={`/documents/${doc.id}`} className="block space-y-3">
 											<div className="flex items-start justify-between">
-												<div className="p-2 bg-blue-50 text-[#0071E3] rounded-lg">
+												<div className="p-2 bg-blue-50 text-[#0071E3] rounded-lg dark:bg-blue-900/30 dark:text-blue-400">
 													<svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
 												</div>
 												{statusBadge(doc.status)}
 											</div>
 											<div>
-												<h3 className="font-semibold text-gray-900 truncate pr-2" title={doc.filename}>{doc.filename}</h3>
-												<p className="text-xs text-gray-500 mt-1">{new Date(doc.created_at).toLocaleDateString()} • {doc.doc_type || 'Unknown'}</p>
+												<h3 className="font-semibold text-gray-900 truncate pr-2 dark:text-white" title={doc.filename}>{doc.filename}</h3>
+												<p className="text-xs text-gray-500 mt-1 dark:text-gray-400">{new Date(doc.created_at).toLocaleDateString()} • {doc.doc_type || 'Unknown'}</p>
 											</div>
 										</Link>
 
-										<div className="mt-5 pt-4 border-t border-gray-100">
-											<div className="mt-5 pt-4 border-t border-gray-100">
+										<div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
+											<div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
 												{doc.status === 'processing' ? (
-													<div className="w-full py-2 flex items-center justify-center gap-2 text-blue-600 bg-blue-50/50 rounded-lg">
+													<div className="w-full py-2 flex items-center justify-center gap-2 text-blue-600 bg-blue-50/50 rounded-lg dark:bg-blue-900/20 dark:text-blue-400">
 														<div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
 														<span className="text-xs font-medium">Processing...</span>
 													</div>
 												) : (
 													<Button
 														variant="secondary"
-														className="w-full text-xs py-2 bg-gray-50 hover:bg-gray-100 border-0"
+														className="w-full text-xs py-2 bg-gray-50 hover:bg-gray-100 border-0 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
 														onClick={() => handleProcess(doc.id)}
 													>
 														{doc.status === 'extracted' ? 'Re-process' : 'Process Document'}
@@ -157,11 +157,11 @@ const InboxPage: React.FC = () => {
 				)}
 				{!loading && documents.length === 0 && (
 					<div className="text-center py-12">
-						<div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+						<div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400 dark:bg-gray-800 dark:text-gray-500">
 							<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
 						</div>
-						<h3 className="text-gray-900 font-medium text-lg">No documents yet</h3>
-						<p className="text-gray-500">Upload a PDF to get started with PaperTrail AI.</p>
+						<h3 className="text-gray-900 font-medium text-lg dark:text-white">No documents yet</h3>
+						<p className="text-gray-500 dark:text-gray-400">Upload a document to get started with PaperTrail AI.</p>
 					</div>
 				)}
 			</div>

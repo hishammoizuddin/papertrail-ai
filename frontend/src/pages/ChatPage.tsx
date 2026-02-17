@@ -43,6 +43,9 @@ const ChatPage: React.FC = () => {
 			try {
 				const res = await axios.get('http://localhost:8000/api/documents/');
 				setDocuments(res.data);
+				if (res.data && res.data.length > 0 && !selectedDoc) {
+					setSelectedDoc(res.data[0].id);
+				}
 			} catch (e) {
 				console.error(e);
 			}
@@ -98,21 +101,21 @@ const ChatPage: React.FC = () => {
 
 	return (
 		<Section title="Chat Assistant" className="h-[calc(100vh-140px)] flex flex-col">
-			<Card className="flex-grow flex flex-col p-0 overflow-hidden bg-white/50 backdrop-blur-xl border border-white/20 shadow-2xl">
+			<Card className="flex-grow flex flex-col p-0 overflow-hidden bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl border border-white/20 dark:border-gray-800 shadow-2xl">
 				{/* Header / Toolbar */}
-				<div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white/40">
+				<div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-white/40 dark:bg-gray-800/40">
 					<div className="flex items-center gap-2">
 						<div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">PT</div>
-						<span className="font-semibold text-gray-700">PaperTrail v2.0</span>
+						<span className="font-semibold text-gray-700 dark:text-gray-200">PaperTrail v2.0</span>
 					</div>
 					<div className="flex items-center gap-2">
-						<span className="text-xs text-gray-500 font-medium">Context:</span>
+						<span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Context:</span>
 						<select
-							className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none shadow-sm"
+							className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none shadow-sm"
 							value={selectedDoc}
 							onChange={(e) => setSelectedDoc(e.target.value)}
 						>
-							<option value="">All Documents (General Knowledge)</option>
+							<option value="" disabled>Select a document...</option>
 							{documents.map(doc => (
 								<option key={doc.id} value={doc.id}>{doc.filename}</option>
 							))}
@@ -121,13 +124,13 @@ const ChatPage: React.FC = () => {
 				</div>
 
 				{/* Messages Area */}
-				<div className="flex-grow overflow-y-auto p-6 space-y-6">
+				<div className="flex-grow overflow-y-auto p-6 space-y-6 bg-transparent">
 					{messages.map((msg, idx) => (
 						<div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
 							<div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
 								<div className={`px-5 py-3 rounded-2xl shadow-sm text-sm leading-relaxed relative ${msg.role === 'user'
 									? 'bg-[#0071E3] text-white rounded-br-none'
-									: 'bg-white border border-gray-100 text-gray-800 rounded-bl-none'
+									: 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'
 									}`}>
 									{msg.image && (
 										<div className="mb-2">
@@ -141,7 +144,7 @@ const ChatPage: React.FC = () => {
 								{msg.citations && msg.citations.length > 0 && (
 									<div className="mt-2 flex flex-wrap gap-2">
 										{msg.citations.map((cit, cIdx) => (
-											<div key={cIdx} className="text-[10px] bg-gray-100 text-gray-500 px-2 py-1 rounded border border-gray-200">
+											<div key={cIdx} className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-1 rounded border border-gray-200 dark:border-gray-700">
 												📄 {cit.filename} (p.{cit.page})
 											</div>
 										))}
@@ -152,13 +155,13 @@ const ChatPage: React.FC = () => {
 					))}
 					{loading && (
 						<div className="flex justify-start">
-							<div className="bg-white border border-gray-100 px-5 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-2">
+							<div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-5 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-2">
 								<div className="flex space-x-1">
 									<div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
 									<div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
 									<div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
 								</div>
-								<span className="text-xs text-gray-400 font-medium ml-2">{imageUrl ? "Analyzing image..." : "Thinking..."}</span>
+								<span className="text-xs text-gray-400 font-medium ml-2">{imageUrl ? "Analyzing image..." : "Analyzing..."}</span>
 							</div>
 						</div>
 					)}
@@ -166,21 +169,21 @@ const ChatPage: React.FC = () => {
 				</div>
 
 				{/* Input Area */}
-				<div className="p-4 bg-white border-t border-gray-100">
-					<div className="flex items-end gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-						<button onClick={handleImageUpload} className={`p-2 rounded-lg text-gray-400 hover:text-[#0071E3] hover:bg-white transition-colors ${imageUrl ? 'text-[#0071E3] bg-blue-50' : ''}`} title="Upload Image URL">
+				<div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+					<div className="flex items-end gap-2 bg-gray-50 dark:bg-gray-900 p-2 rounded-xl border border-gray-200 dark:border-gray-700 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900 transition-all">
+						<button onClick={handleImageUpload} className={`p-2 rounded-lg text-gray-400 hover:text-[#0071E3] hover:bg-white dark:hover:bg-gray-800 transition-colors ${imageUrl ? 'text-[#0071E3] bg-blue-50 dark:bg-blue-900/30' : ''}`} title="Upload Image URL">
 							<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
 						</button>
 						<div className="flex-grow flex flex-col">
 							{imageUrl && (
-								<div className="text-xs text-blue-600 truncate max-w-[300px] mb-1 px-1 flex justify-between items-center">
+								<div className="text-xs text-blue-600 dark:text-blue-400 truncate max-w-[300px] mb-1 px-1 flex justify-between items-center">
 									<span>Image attached</span>
 									<button onClick={() => setImageUrl(null)} className="text-gray-400 hover:text-red-500">×</button>
 								</div>
 							)}
 							<input
 								type="text"
-								className="w-full bg-transparent border-none focus:ring-0 p-2 text-gray-700 placeholder-gray-400 text-sm"
+								className="w-full bg-transparent border-none focus:ring-0 p-2 text-gray-700 dark:text-gray-200 placeholder-gray-400 text-sm"
 								placeholder="Ask a question or describe an image..."
 								value={input}
 								onChange={(e) => setInput(e.target.value)}

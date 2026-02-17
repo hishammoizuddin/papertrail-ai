@@ -27,7 +27,12 @@ def upload_document(file: UploadFile = File(...)):
 	try:
 		if file.content_type not in ["application/pdf", "image/png", "image/jpeg"]:
 			raise HTTPException(status_code=400, detail="Only PDF, PNG, JPG allowed.")
-		if file.size and file.size > MAX_UPLOAD_MB * 1024 * 1024:
+		# Check file size safely
+		file.file.seek(0, 2)
+		file_size = file.file.tell()
+		file.file.seek(0)
+		
+		if file_size > MAX_UPLOAD_MB * 1024 * 1024:
 			raise HTTPException(status_code=400, detail="File too large.")
 		doc_id = str(uuid.uuid4())
 		doc_dir = os.path.join(UPLOAD_ROOT, doc_id)
