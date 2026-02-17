@@ -12,11 +12,12 @@ export interface ChatResponse {
   citations: ChatCitation[];
 }
 
-export async function chat(message: string, document_id?: string, top_k: number = 10): Promise<ChatResponse> {
+export async function chat(message: string, document_id?: string, top_k: number = 10, history?: { role: string; content: string }[]): Promise<ChatResponse> {
   const res = await axios.post<ChatResponse>('/api/chat', {
     message,
     document_id,
     top_k,
+    history,
   });
   return res.data;
 }

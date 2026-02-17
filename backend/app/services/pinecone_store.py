@@ -20,14 +20,10 @@ def delete_vectors_by_document(document_id: str):
 	"""
 	Delete all vectors for a document by filtering metadata.
 	"""
-	# Pinecone does not support metadata delete directly; fetch IDs and delete
-	res = index.query(vector=[0.0]*1536,  # dummy vector, will not match
-					  top_k=1,
-					  filter={"document_id": document_id},
-					  namespace=NAMESPACE)
-	ids = [match["id"] for match in res.get("matches", [])]
-	if ids:
-		index.delete(ids=ids, namespace=NAMESPACE)
+	try:
+		index.delete(filter={"document_id": document_id}, namespace=NAMESPACE)
+	except Exception as e:
+		print(f"Error deleting vectors for document {document_id}: {e}")
 
 def query_similar_vectors(embedding: list, top_k: int = 10, document_id: str = None):
 	"""

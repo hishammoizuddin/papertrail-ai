@@ -74,10 +74,17 @@ const ChatPage: React.FC = () => {
 		setLoading(true);
 
 		try {
+			// Prepare history from existing messages
+			const history = messages.map(m => ({
+				role: m.role,
+				content: m.content
+			}));
+
 			const res = await axios.post('http://localhost:8000/api/chat/', {
 				message: userMsg.content,
 				document_id: selectedDoc || undefined,
-				image_url: currentImage || undefined
+				image_url: currentImage || undefined,
+				history: history
 			});
 
 			const botMsg: Message = {

@@ -47,6 +47,7 @@ class ChatRequest(BaseModel):
     top_k: Optional[int] = 10
     document_id: Optional[str] = None
     image_url: Optional[str] = None
+    history: Optional[List[Dict[str, str]]] = None
 
 class ChatCitation(BaseModel):
     document_id: str
