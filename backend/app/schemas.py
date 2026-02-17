@@ -22,6 +22,7 @@ class DocumentSummary(BaseModel):
     doc_type: Optional[str]
     issuer: Optional[str]
     primary_due_date: Optional[date]
+    extracted_json: Optional[Any]
     status: str
     error_message: Optional[str]
 
@@ -60,8 +61,18 @@ class ChatResponse(BaseModel):
 class ActionItemBase(BaseModel):
     id: int
     document_id: str
-    type: str
+    type: str = "action"
     description: str
     status: str
     payload: Optional[dict] = None
     created_at: datetime
+
+class ConflictItem(BaseModel):
+    source_id: str
+    target_id: str
+    description: str
+    severity: str
+
+class ConflictReport(BaseModel):
+    conflicts: List[ConflictItem]
+    node_ids_analyzed: List[str]
