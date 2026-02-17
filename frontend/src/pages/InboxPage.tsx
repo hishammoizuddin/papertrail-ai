@@ -22,11 +22,85 @@ const statusBadge = (status: string) => {
 	}
 };
 
+import { createPortal } from 'react-dom';
+
+const DeleteConfirmationModal: React.FC<{
+	isOpen: boolean;
+	onClose: () => void;
+	onConfirm: () => void;
+	loading: boolean;
+}> = ({ isOpen, onClose, onConfirm, loading }) => {
+	if (!isOpen) return null;
+
+	return createPortal(
+		<div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+			{/* Backdrop */}
+			<motion.div
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				exit={{ opacity: 0 }}
+				className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+				onClick={onClose}
+			/>
+
+			{/* Modal */}
+			<motion.div
+				initial={{ opacity: 0, scale: 0.95, y: 10 }}
+				animate={{ opacity: 1, scale: 1, y: 0 }}
+				exit={{ opacity: 0, scale: 0.95, y: 10 }}
+				className="relative w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden"
+			>
+				<div className="p-6 flex flex-col items-center text-center gap-4">
+					<div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center text-red-600 dark:text-red-500 mb-2">
+						<svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+					</div>
+
+					<div className="space-y-2">
+						<h3 className="text-xl font-bold text-gray-900 dark:text-white">Delete Document?</h3>
+						<p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+							This action cannot be undone. This will permanently remove the document and all associated data from your knowledge graph.
+						</p>
+					</div>
+
+					<div className="grid grid-cols-2 gap-3 w-full mt-4">
+						<Button
+							variant="secondary"
+							onClick={onClose}
+							disabled={loading}
+							className="w-full justify-center"
+						>
+							Cancel
+						</Button>
+						<Button
+							variant="primary"
+							className="bg-red-600 hover:bg-red-700 text-white border-red-600 w-full justify-center shadow-lg shadow-red-500/20"
+							onClick={onConfirm}
+							disabled={loading}
+						>
+							{loading ? (
+								<div className="flex items-center gap-2">
+									<div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+									<span>Deleting...</span>
+								</div>
+							) : 'Delete'}
+						</Button>
+					</div>
+				</div>
+			</motion.div>
+		</div>,
+		document.body
+	);
+};
+
 const InboxPage: React.FC = () => {
 	const [documents, setDocuments] = useState<Document[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [uploading, setUploading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+
+	// Delete Modal State
+	const [deleteId, setDeleteId] = useState<string | null>(null);
+	const [isDeleting, setIsDeleting] = useState(false);
 
 	const fetchDocs = async (silent = false) => {
 		if (!silent) setLoading(true);
@@ -44,15 +118,15 @@ const InboxPage: React.FC = () => {
 		fetchDocs();
 	}, []);
 
-	// Poll for updates if any document is processing
+	// Poll for updates if any document is processing AND modal is closed
 	useEffect(() => {
-		if (documents.some(d => d.status === 'processing')) {
+		if (documents.some(d => d.status === 'processing') && !deleteId) {
 			const interval = setInterval(() => {
 				fetchDocs(true);
 			}, 2000);
 			return () => clearInterval(interval);
 		}
-	}, [documents]);
+	}, [documents, deleteId]);
 
 	const handleProcess = async (docId: string, isAuto = false) => {
 		setError(null);
@@ -73,21 +147,27 @@ const InboxPage: React.FC = () => {
 		}
 	};
 
-	const handleDelete = async (docId: string, event: React.MouseEvent) => {
-		event.preventDefault(); // Prevent link navigation
+	const initiateDelete = (docId: string, event: React.MouseEvent) => {
+		event.preventDefault();
 		event.stopPropagation();
+		setDeleteId(docId);
+	};
 
-		if (!window.confirm("Are you sure you want to delete this document? This action cannot be undone.")) {
-			return;
-		}
-
+	const confirmDelete = async () => {
+		if (!deleteId) return;
+		setIsDeleting(true);
 		try {
-			// Optimistic update
-			setDocuments(prev => prev.filter(d => d.id !== docId));
-			await deleteDocument(docId);
+			await deleteDocument(deleteId);
+			setDocuments(prev => prev.filter(d => d.id !== deleteId));
+			setDeleteId(null);
 		} catch (e: any) {
+			console.error("Delete failed", e);
 			setError(e.message || 'Delete failed');
-			fetchDocs(); // Revert on failure
+			// Close modal on error so user can retry or see error
+			setDeleteId(null);
+			fetchDocs();
+		} finally {
+			setIsDeleting(false);
 		}
 	};
 
@@ -109,7 +189,15 @@ const InboxPage: React.FC = () => {
 
 	return (
 		<Section title="Dashboard">
-			<div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
+			<div className="max-w-6xl mx-auto space-y-8 animate-fade-in relative">
+				{/* Modal Portal */}
+				<DeleteConfirmationModal
+					isOpen={!!deleteId}
+					onClose={() => setDeleteId(null)}
+					onConfirm={confirmDelete}
+					loading={isDeleting}
+				/>
+
 				{/* Dashboard Widget Area */}
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					<div className="lg:col-span-2">
@@ -136,7 +224,7 @@ const InboxPage: React.FC = () => {
 									transition={{ delay: idx * 0.05, duration: 0.3 }}
 								>
 									<Card className="h-full flex flex-col justify-between group hover:ring-2 hover:ring-[#0071E3]/20 transition-all p-5 dark:bg-gray-800 dark:border-gray-700 relative">
-										<Link to={`/documents/${doc.id}`} className="block space-y-3">
+										<div className="space-y-3">
 											<div className="flex items-start justify-between">
 												<div className="p-2 bg-blue-50 text-[#0071E3] rounded-lg dark:bg-blue-900/30 dark:text-blue-400">
 													<svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -144,19 +232,19 @@ const InboxPage: React.FC = () => {
 												<div className="flex items-center gap-2">
 													{statusBadge(doc.status)}
 													<button
-														onClick={(e) => handleDelete(doc.id, e)}
-														className="text-gray-400 hover:text-red-500 transition-colors p-1"
+														onClick={(e) => initiateDelete(doc.id, e)}
+														className="text-gray-400 hover:text-red-500 transition-colors p-1 z-10 relative"
 														title="Delete document"
 													>
 														<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
 													</button>
 												</div>
 											</div>
-											<div>
+											<Link to={`/documents/${doc.id}`} className="block group-hover:opacity-80 transition-opacity">
 												<h3 className="font-semibold text-gray-900 truncate pr-2 dark:text-white" title={doc.filename}>{doc.filename}</h3>
 												<p className="text-xs text-gray-500 mt-1 dark:text-gray-400">{new Date(doc.created_at).toLocaleDateString()} • {doc.doc_type || 'Unknown'}</p>
-											</div>
-										</Link>
+											</Link>
+										</div>
 
 										<div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
 											<div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">

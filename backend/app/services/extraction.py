@@ -16,14 +16,21 @@ CLASSIFY_PROMPT = (
 )
 
 EXTRACT_PROMPT = (
-	"You are an expert document analyst and personal assistant. Your goal is to extract structured data to create a perfect Knowledge Map and a highly actionable Task List.\n"
-	"Given the document text, perform the following:\n"
-	"1. **Classify & Tag**: Identify the specific document type (e.g., 'Invoice', 'Lease Agreement', 'Medical Record'), a broad category (e.g., 'Finance', 'Legal', 'Health', 'Home'), and add relevant tags (e.g., 'Tax 2024', 'Vehicle', 'Urgent').\n"
+	"You are an expert document analyst and knowledge graph architect. Your goal is to extract structured data to create a perfect Knowledge Map and a highly actionable Task List.\n"
+	"Given the document text, perform the following detailed analysis:\n"
+	"1. **Classify & Tag**: Identify the specific document type (e.g., 'Invoice', 'Lease Agreement', 'Medical Record'), a broad category (e.g., 'Finance', 'Legal', 'Health'), and add relevant tags.\n"
 	"2. **Summarize**: Write a detailed, multi-paragraph summary.\n"
-	"3. **Entities**: Extract all people, organizations, and locations mentioned.\n"
-	"4. **Actionable Tasks**: Identify specific deadlines and recommended next steps. Be precise with actions (e.g., 'Pay $50.00 to Comcast' instead of just 'Pay bill').\n"
-	"5. **Priority**: Assign a priority score (1-10) based on urgency and importance.\n"
-	"6. If information is missing, use null or empty arrays. Never invent.\n"
+	"3. **Entities (CRITICAL)**: Extract entities with extreme precision.\n"
+	"   - **People**: ONLY human names (e.g., 'John Smith', 'Mary Doe'). DO NOT classify roles, departments, or generic titles as People.\n"
+	"   - **Organizations**: Companies, institutions, agencies, and SPECIFIC DEPARTMENTS (e.g., 'Accounts Payable', 'Billing Dept', 'IRS').\n"
+	"   - **Roles**: Job titles or functions (e.g., 'Manager', 'Landlord', 'Customer Service').\n"
+	"   - **Locations**: Cities, addresses, specific rooms/buildings.\n"
+	"   - **Check**: Before classifying 'Accounts Payable', 'The Landlord', or 'Support Team' as a Person, STOP. These are Organizations or Roles.\n"
+	"4. **Relationships**: Identify **explicit connections** between entities. Use active verbs. \n"
+	"   - Examples: 'John Doe (Person) WORKS_FOR Acme Corp (Organization)', 'Payment (Action) PAYS_FOR Rent (Concept)', 'Invoice (Document) ISSUED_BY Vendor (Organization)'.\n"
+	"5. **Actionable Tasks**: Identify specific deadlines and recommended next steps. Be precise (e.g., 'Pay $50.00 to Comcast').\n"
+	"6. **Priority**: Assign a priority score (1-10) based on urgency.\n"
+	"7. If information is missing, use null or empty arrays. Never invent.\n"
 	"Output strict JSON in the following schema.\n"
 	"Schema: {schema}\nText:\n{input}"
 )
@@ -34,14 +41,16 @@ EXTRACT_SCHEMA = {
 	"category": "string|null",
 	"tags": ["string"],
 	"priority_score": "number", # 1-10
-	"people": [{"name": "string", "role": "string|null"}],
-	"organizations": [{"name": "string", "type": "string|null"}],
+	"people": [{"name": "string", "role": "string|null", "description": "string|null"}], # Humans only
+	"organizations": [{"name": "string", "type": "string|null", "description": "string|null"}], # Companies, Depts
+	"roles": [{"name": "string", "description": "string|null"}], # Job titles, functional roles
 	"locations": [{"name": "string", "type": "string|null"}],
+	"relationships": [{"source": "string", "target": "string", "relation": "string", "description": "string|null"}],
 	"addresses": [{"label": "string|null", "address": "string"}],
 	"amounts": [{"label": "string|null", "value": "number", "currency": "string|null"}],
 	"dates": [{"label": "string", "date": "YYYY-MM-DD"}],
 	"deadlines": [{"action": "string", "due_date": "YYYY-MM-DD", "severity": "low|medium|high"}],
-	"detailed_summary": "string",  # Multi-paragraph summary
+	"detailed_summary": "string",
 	"summary_bullets": ["string", "..."],
 	"recommended_actions": ["string", "..."]
 }
@@ -54,7 +63,9 @@ class ExtractedFieldsModel(BaseModel):
 	priority_score: Optional[int] = None
 	people: Optional[list] = None
 	organizations: Optional[list] = None
+	roles: Optional[list] = None # NEW
 	locations: Optional[list] = None
+	relationships: Optional[list] = None
 	addresses: Optional[list] = None
 	amounts: Optional[list] = None
 	dates: Optional[list] = None
@@ -98,7 +109,7 @@ def extract_fields(text: str) -> Optional[Dict[str, Any]]:
 			# Note: Pydantic v2 model_validate does not mutate in-place usually if dict is passed directly unless we instantiate model.
 			# But here we just want to ensure structure is roughly correct.
 			# We'll manually fix None -> [] for safety.
-			for k in ["people", "organizations", "locations", "tags", "addresses", "amounts", "dates", "deadlines", "summary_bullets", "recommended_actions"]:
+			for k in ["people", "organizations", "roles", "locations", "tags", "addresses", "amounts", "dates", "deadlines", "summary_bullets", "recommended_actions"]:
 				if k not in data or data[k] is None:
 					data[k] = []
 			

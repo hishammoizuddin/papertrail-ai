@@ -6,6 +6,31 @@ import json
 import uuid
 from datetime import datetime
 
+# --- HEURISTIC HELPERS ---
+NON_PERSON_KEYWORDS = {
+    "accounts payable", "payable", "receivable", "billing", "department", "dept", 
+    "manager", "director", "officer", "support", "help", "desk", "service", "customer", 
+    "team", "group", "committee", "board", "council", "agency", "irs", "tax", 
+    "government", "city", "state", "county", "unknown", "n/a", "none"
+}
+
+def is_likely_person(name):
+    if not name: return False
+    n = name.lower().strip()
+    if n in NON_PERSON_KEYWORDS: return False
+    
+    # Check if any constituent word is a non-person keyword
+    # e.g. "Customer Service" -> "customer" and "service" are keywords
+    parts = n.split()
+    for part in parts:
+        if part in NON_PERSON_KEYWORDS:
+            return False
+            
+    # Check for "The [Role]" pattern
+    if n.startswith("the "): return False
+    
+    return True
+
 def rebuild_graph(session: Session, user: User):
     # 1. Identify existing nodes for this user to clean up
     # We essentially want to clear the slate for this user.
@@ -42,10 +67,26 @@ def rebuild_graph(session: Session, user: User):
     unique_nodes = {} # id -> GraphNode
     all_edges = []
 
+    # Helper to create scoped entity node
+    def get_or_create_node(entity_type, name, properties=None):
+        if not name: return None
+        # SCOPED ID: user_id:type:slug
+        slug = name.strip().lower().replace(' ', '_').replace('.', '').replace(',', '')
+        node_id = f"{user.id}:{entity_type}:{slug}"
+        
+        if node_id not in unique_nodes:
+            unique_nodes[node_id] = GraphNode(
+                id=node_id, 
+                label=name.strip(), 
+                type=entity_type, 
+                properties=properties or {},
+                user_id=user.id
+            )
+        return node_id
+
     for doc in docs:
         print(f"DEBUG: Processing doc {doc.id}, has_extraction={bool(doc.extracted_json)}")
         # Document Node
-        # Doc ID is UUID, safe to use directly, but we associate it with user_id
         if doc.id not in unique_nodes:
             # Extract basic properties for the document node
             doc_props = {
@@ -79,52 +120,97 @@ def rebuild_graph(session: Session, user: User):
             data = json.loads(doc.extracted_json) if isinstance(doc.extracted_json, str) else doc.extracted_json
             if not data: continue
 
-            # Helper to create scoped entity node
-            def create_entity_node(entity_type, name, properties=None):
-                # SCOPED ID: user_id:type:slug
-                slug = name.lower().replace(' ', '_')
-                node_id = f"{user.id}:{entity_type}:{slug}"
-                if node_id not in unique_nodes:
-                    unique_nodes[node_id] = GraphNode(
-                        id=node_id, 
-                        label=name, 
-                        type=entity_type, 
-                        properties=properties or {},
-                        user_id=user.id
-                    )
-                return node_id
+            # --- NEW LOGIC: Explicit Relationships (Knowledge Graph 2.0) ---
+            if data.get("relationships") and isinstance(data["relationships"], list) and len(data["relationships"]) > 0:
+                print(f"DEBUG: Using explicit relationships for doc {doc.id}")
+                for rel in data["relationships"]:
+                    s_name = rel.get("source")
+                    t_name = rel.get("target")
+                    relation = rel.get("relation", "RELATED_TO").upper().replace(' ', '_')
+                    
+                    if not s_name or not t_name: continue
 
+                    # Heuristic: Check against known lists to infer type
+                    def infer_type(name):
+                        name_lower = name.lower()
+                        # Check people list first, but verify with heuristic
+                        for p in data.get("people", []):
+                            if p["name"].lower() == name_lower:
+                                return "person" if is_likely_person(name) else "role" # Reclassify if bad name
+                        
+                        if any(o["name"].lower() == name_lower for o in data.get("organizations", [])): return "organization"
+                        if any(r["name"].lower() == name_lower for r in data.get("roles", [])): return "role"
+                        if name_lower == doc.filename.lower(): return "document"
+                        
+                        # Fallback heuristics
+                        if not is_likely_person(name): return "organization" # Default non-people to org/role
+                        return "entity"
+
+                    s_type = infer_type(s_name)
+                    t_type = infer_type(t_name)
+
+                    # Create nodes
+                    s_id = get_or_create_node(s_type, s_name)
+                    t_id = get_or_create_node(t_type, t_name)
+                    
+                    if s_id and t_id:
+                        all_edges.append(GraphEdge(source=s_id, target=t_id, relation=relation))
+                        
+                        # Use "MENTIONS" for simple document links
+                        all_edges.append(GraphEdge(source=doc.id, target=s_id, relation="MENTIONS"))
+                        all_edges.append(GraphEdge(source=doc.id, target=t_id, relation="MENTIONS"))
+
+            # --- FALLBACK / HYBRID LOGIC (Legacy + Basic Linking) ---
+            
             # Issuer Node
             if data.get("issuer"):
-                issuer_id = create_entity_node("issuer", data["issuer"])
-                all_edges.append(GraphEdge(source=doc.id, target=issuer_id, relation="ISSUED_BY"))
+                issuer_id = get_or_create_node("issuer", data["issuer"])
+                if issuer_id:
+                     all_edges.append(GraphEdge(source=doc.id, target=issuer_id, relation="ISSUED_BY"))
 
             # Category Node
             if data.get("category"):
-                cat_id = create_entity_node("category", data["category"])
-                all_edges.append(GraphEdge(source=doc.id, target=cat_id, relation="IN_CATEGORY"))
+                cat_id = get_or_create_node("category", data["category"])
+                if cat_id:
+                    all_edges.append(GraphEdge(source=doc.id, target=cat_id, relation="IN_CATEGORY"))
 
             # Tag Nodes
             for tag in data.get("tags", []):
-                tag_id = create_entity_node("tag", tag)
-                all_edges.append(GraphEdge(source=doc.id, target=tag_id, relation="TAGGED"))
+                tag_id = get_or_create_node("tag", tag)
+                if tag_id:
+                    all_edges.append(GraphEdge(source=doc.id, target=tag_id, relation="TAGGED"))
 
-            # People Nodes
+            # People Nodes (with strict check)
             for person in data.get("people", []):
-                person_id = create_entity_node("person", person["name"], {"role": person.get("role")})
-                all_edges.append(GraphEdge(source=doc.id, target=person_id, relation="MENTIONS"))
+                p_name = person["name"]
+                if is_likely_person(p_name):
+                    person_id = get_or_create_node("person", p_name, {"role": person.get("role"), "desc": person.get("description")})
+                else:
+                    # Reclassify as Role or Organization
+                    person_id = get_or_create_node("role", p_name, {"desc": person.get("description")})
+                
+                if person_id:
+                    all_edges.append(GraphEdge(source=doc.id, target=person_id, relation="MENTIONS"))
 
-            # Organization Nodes (Entities)
+            # Organization Nodes
             for org in data.get("organizations", []):
                 if data.get("issuer") and org["name"].lower() == data.get("issuer").lower():
                     continue
-                org_id = create_entity_node("organization", org["name"], {"type": org.get("type")})
-                all_edges.append(GraphEdge(source=doc.id, target=org_id, relation="MENTIONS"))
+                org_id = get_or_create_node("organization", org["name"], {"type": org.get("type"), "desc": org.get("description")})
+                if org_id:
+                    all_edges.append(GraphEdge(source=doc.id, target=org_id, relation="MENTIONS"))
+            
+            # Role Nodes (NEW)
+            for role in data.get("roles", []):
+                role_id = get_or_create_node("role", role["name"], {"desc": role.get("description")})
+                if role_id:
+                     all_edges.append(GraphEdge(source=doc.id, target=role_id, relation="MENTIONS"))
 
             # Location Nodes
             for loc in data.get("locations", []):
-                loc_id = create_entity_node("location", loc["name"], {"type": loc.get("type")})
-                all_edges.append(GraphEdge(source=doc.id, target=loc_id, relation="LOCATED_AT"))
+                loc_id = get_or_create_node("location", loc["name"], {"type": loc.get("type")})
+                if loc_id:
+                    all_edges.append(GraphEdge(source=doc.id, target=loc_id, relation="LOCATED_AT"))
                 
         except Exception as e:
             print(f"Error parsing graph data for doc {doc.id}: {e}")

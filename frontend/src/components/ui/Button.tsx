@@ -6,9 +6,10 @@ interface ButtonProps {
   className?: string;
   disabled?: boolean;
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  title?: string;
 }
 
-const Button: React.FC<ButtonProps> = ({ children, onClick, className = '', disabled, variant = 'primary' }) => {
+const Button: React.FC<ButtonProps> = ({ children, onClick, className = '', disabled, variant = 'primary', title }) => {
   const baseStyles = "px-5 py-2.5 rounded-full font-medium text-sm transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed";
 
   const variants = {
@@ -22,10 +23,12 @@ const Button: React.FC<ButtonProps> = ({ children, onClick, className = '', disa
     <button
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`${baseStyles} ${variants[variant]} ${className}`}
     >
       {children}
     </button>
+
   );
 };
 

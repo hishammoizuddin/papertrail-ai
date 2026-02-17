@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { Section } from './ui/Section';
 import Card from './ui/Card';
@@ -8,7 +8,9 @@ import axios from 'axios';
 import DossierPanel, { DossierData } from './DossierPanel';
 import { BookOpen } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-
+import { GraphControls } from './GraphControls';
+import { GraphHelpModal } from './GraphHelpModal';
+import { useToast } from '../context/ToastContext';
 
 interface Node {
     id: string;
@@ -17,11 +19,13 @@ interface Node {
     properties: any;
     val?: number;
     color?: string;
+    x?: number;
+    y?: number;
 }
 
 interface Link {
-    source: string;
-    target: string;
+    source: string | Node;
+    target: string | Node;
     relation: string;
 }
 
@@ -33,8 +37,10 @@ interface GraphData {
 const GraphView: React.FC = () => {
     const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
     const { theme } = useTheme();
+    const { addToast } = useToast();
     const [loading, setLoading] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
+    const graphRef = useRef<any>(null); // Ref to ForceGraph instance
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
     const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
@@ -52,10 +58,14 @@ const GraphView: React.FC = () => {
     const [dossierData, setDossierData] = useState<DossierData | null>(null);
     const [loadingDossier, setLoadingDossier] = useState(false);
 
+    // UX State
+    const [isHelpOpen, setIsHelpOpen] = useState(false);
+    const [filteredData, setFilteredData] = useState<GraphData>({ nodes: [], links: [] });
+    const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
+
     const fetchGraph = async () => {
         setLoading(true);
         try {
-            // Use axios (global instance configured in AuthContext) for authentication
             const res = await axios.get('/api/graph/data');
             const graphData = res.data;
 
@@ -99,26 +109,50 @@ const GraphView: React.FC = () => {
                     ...n,
                     val,
                     color,
-                    // Add extracted properties for easy access
                     properties: n.properties || {}
                 };
             });
 
-            setData({ nodes, links: graphData.links });
+            const newData = { nodes, links: graphData.links };
+            setData(newData);
+            // Initial filter application
+            filterGraphData(newData, hiddenTypes);
+
         } catch (error) {
             console.error("Failed to fetch graph data:", error);
+            addToast("Failed to load Knowledge Graph", 'error');
         } finally {
             setLoading(false);
         }
     };
+
+    const filterGraphData = (sourceData: GraphData, hidden: Set<string>) => {
+        const visibleNodes = sourceData.nodes.filter(n => !hidden.has(n.type));
+        const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+
+        const visibleLinks = sourceData.links.filter(l => {
+            const sourceId = typeof l.source === 'object' ? (l.source as Node).id : l.source;
+            const targetId = typeof l.target === 'object' ? (l.target as Node).id : l.target;
+            return visibleNodeIds.has(sourceId as string) && visibleNodeIds.has(targetId as string);
+        });
+
+        setFilteredData({ nodes: visibleNodes, links: visibleLinks });
+    };
+
+    useEffect(() => {
+        filterGraphData(data, hiddenTypes);
+    }, [data, hiddenTypes]);
+
 
     const handleRebuild = async () => {
         setRebuilding(true);
         try {
             await axios.post('/api/graph/rebuild');
             await fetchGraph();
+            addToast("Graph rebuilt successfully!", 'success');
         } catch (error) {
             console.error("Failed to rebuild graph:", error);
+            addToast("Failed to rebuild graph", 'error');
         } finally {
             setRebuilding(false);
         }
@@ -127,13 +161,16 @@ const GraphView: React.FC = () => {
     const handleAnalyze = async () => {
         setAnalyzing(true);
         try {
-            const res = await axios.post('/api/graph/analyze', { node_ids: [] }); // Analyze all/top nodes
+            const res = await axios.post('/api/graph/analyze', { node_ids: [] });
             setConflicts(res.data.conflicts);
             if (res.data.conflicts.length === 0) {
-                alert("No conflicts detected.");
+                addToast("No conflicts detected", 'success');
+            } else {
+                addToast(`${res.data.conflicts.length} conflicts detected`, 'error');
             }
         } catch (error) {
             console.error("Failed to analyze graph:", error);
+            addToast("Analysis failed", 'error');
         } finally {
             setAnalyzing(false);
         }
@@ -147,6 +184,7 @@ const GraphView: React.FC = () => {
             setIsDossierOpen(true);
         } catch (error) {
             console.error("Failed to fetch dossier:", error);
+            addToast("Could not load dossier details", 'error');
         } finally {
             setLoadingDossier(false);
         }
@@ -161,26 +199,18 @@ const GraphView: React.FC = () => {
             if (visitedNodes.has(currentNodeId)) return;
             visitedNodes.add(currentNodeId);
 
-            // Find all links connected to this node
             const connectedLinks = data.links.filter(l =>
-                (typeof l.source === 'object' ? (l.source as any).id : l.source) === currentNodeId ||
-                (typeof l.target === 'object' ? (l.target as any).id : l.target) === currentNodeId
+                (typeof l.source === 'object' ? (l.source as Node).id : l.source) === currentNodeId ||
+                (typeof l.target === 'object' ? (l.target as Node).id : l.target) === currentNodeId
             );
 
             connectedLinks.forEach(link => {
-                const sourceId = typeof link.source === 'object' ? (link.source as any).id : link.source;
-                const targetId = typeof link.target === 'object' ? (link.target as any).id : link.target;
+                const sourceId = typeof link.source === 'object' ? (link.source as Node).id : link.source as string;
+                const targetId = typeof link.target === 'object' ? (link.target as Node).id : link.target as string;
 
-                // Add link to visited
-                // We need a unique way to identify links, checking content for now
-                // Ideally links have IDs, but here we just check if we processed this specific link object
-                // Visited links logic depends on how we iterate. 
-                // Since we don't have IDs on links easily, checking existence in 'connectedLinks' is partial.
-                // We will create a signature.
                 const linkSig = `${sourceId}-${targetId}`;
                 if (!visitedLinks.has(linkSig)) {
                     visitedLinks.add(linkSig);
-                    // Recursively traverse the OTHER node
                     const nextNodeId = sourceId === currentNodeId ? targetId : sourceId;
                     traverse(nextNodeId);
                 }
@@ -196,12 +226,31 @@ const GraphView: React.FC = () => {
             setSelectedNode(node);
             setHighlightedNodes(new Set());
             setHighlightedLinks(new Set());
-            // Fetch dossier if it's an entity node (or even document node)
-            // fetchDossier(node.id);  <-- DISABLED AUTO-OPEN
         }
     };
 
-    // Clear highlights when clicking background
+    const handleSearch = (query: string) => {
+        const targetNode = data.nodes.find(n => n.label.toLowerCase() === query.toLowerCase());
+        if (targetNode && graphRef.current) {
+            // Zoom to node
+            graphRef.current.centerAt(targetNode.x, targetNode.y, 1000);
+            graphRef.current.zoom(6, 2000);
+            setSelectedNode(targetNode as Node);
+            // Optionally trace it
+            if (auditMode) traceTrail(targetNode);
+        }
+    };
+
+    const handleFilterChange = (type: string, isVisible: boolean) => {
+        const newHidden = new Set(hiddenTypes);
+        if (isVisible) {
+            newHidden.delete(type); // Visible means removed from hidden
+        } else {
+            newHidden.add(type);
+        }
+        setHiddenTypes(newHidden);
+    };
+
     const handleBackgroundClick = () => {
         setSelectedNode(null);
         setHighlightedNodes(new Set());
@@ -215,43 +264,37 @@ const GraphView: React.FC = () => {
             if (containerRef.current) {
                 setDimensions({
                     width: containerRef.current.offsetWidth,
-                    height: window.innerHeight - 200
+                    height: window.innerHeight - 240 // Adjusted for controls
                 });
             }
         };
 
         window.addEventListener('resize', updateDimensions);
-        updateDimensions();
+        // Delay initial measure to allow layout settling
+        setTimeout(updateDimensions, 100);
 
         return () => window.removeEventListener('resize', updateDimensions);
     }, []);
 
     return (
         <Section title="Knowledge Map">
-            <div className="flex justify-between mb-4">
-                <div className="flex gap-2">
-                    <Button
-                        variant={auditMode ? 'primary' : 'secondary'}
-                        onClick={() => {
-                            setAuditMode(!auditMode);
-                            setHighlightedNodes(new Set());
-                            setHighlightedLinks(new Set());
-                        }}
-                    >
-                        {auditMode ? 'Exit Audit Mode' : 'Trace The Trail'}
-                    </Button>
-                    <Button
-                        variant={conflicts.length > 0 ? 'danger' : 'secondary'}
-                        onClick={handleAnalyze}
-                        disabled={analyzing}
-                    >
-                        {analyzing ? 'Analyzing...' : 'Conflict Search'}
-                    </Button>
-                </div>
-                <Button onClick={handleRebuild} disabled={rebuilding}>
-                    {rebuilding ? 'Rebuilding...' : 'Rebuild Graph'}
-                </Button>
-            </div>
+            <GraphControls
+                onSearch={handleSearch}
+                onFilterChange={(type, isVisible) => handleFilterChange(type, isVisible)}
+                onRebuild={handleRebuild}
+                onAnalyze={handleAnalyze}
+                onToggleAudit={() => {
+                    setAuditMode(!auditMode);
+                    setHighlightedNodes(new Set());
+                    setHighlightedLinks(new Set());
+                }}
+                onOpenHelp={() => setIsHelpOpen(true)}
+                isRebuilding={rebuilding}
+                isAnalyzing={analyzing}
+                isAuditMode={auditMode}
+                conflictCount={conflicts.length}
+                nodes={data.nodes}
+            />
 
             {conflicts.length > 0 && (
                 <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-fade-in">
@@ -274,14 +317,17 @@ const GraphView: React.FC = () => {
                 isLoading={loadingDossier}
             />
 
-            <div className="flex gap-6 h-[calc(100vh-180px)] animate-fade-in relative">
+            <GraphHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+            <div className="flex gap-6 h-[calc(100vh-220px)] animate-fade-in relative">
                 <Card className="flex-1 p-0 overflow-hidden relative border border-gray-200 dark:border-gray-800 shadow-xl bg-gray-50/50 dark:bg-gray-900/50">
                     {!loading ? (
                         <div ref={containerRef} className="w-full h-full">
                             <ForceGraph2D
+                                ref={graphRef}
                                 width={dimensions.width}
                                 height={dimensions.height}
-                                graphData={data}
+                                graphData={filteredData}
                                 nodeLabel="label"
                                 nodeColor={(node: any) => {
                                     if (auditMode && highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) {
@@ -294,7 +340,6 @@ const GraphView: React.FC = () => {
                                 linkDirectionalArrowRelPos={1}
                                 linkCurvature={0.25}
                                 linkColor={(link: any) => {
-                                    // Check for conflict
                                     const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
                                     const targetId = typeof link.target === 'object' ? link.target.id : link.target;
 
@@ -303,15 +348,15 @@ const GraphView: React.FC = () => {
                                         (c.source_id === targetId && c.target_id === sourceId)
                                     );
 
-                                    if (isConflict) return '#EF4444'; // Red for conflict
+                                    if (isConflict) return '#EF4444';
 
                                     if (auditMode && highlightedLinks.size > 0) {
                                         const linkSig = `${sourceId}-${targetId}`;
-                                        const linkSigRev = `${targetId}-${sourceId}`; // undirected check usually
-                                        if (highlightedLinks.has(linkSig) || highlightedLinks.has(linkSigRev)) return '#0071E3'; // Blue for trace
-                                        return '#e5e7eb'; // Fade others
+                                        const linkSigRev = `${targetId}-${sourceId}`;
+                                        if (highlightedLinks.has(linkSig) || highlightedLinks.has(linkSigRev)) return '#0071E3';
+                                        return '#e5e7eb';
                                     }
-                                    return '#9CA3AF'; // Default gray
+                                    return '#9CA3AF';
                                 }}
                                 linkWidth={(link: any) => {
                                     const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
@@ -330,22 +375,9 @@ const GraphView: React.FC = () => {
                                     }
                                     return 1;
                                 }}
-                                linkLineDash={(link: any) => {
-                                    const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
-                                    const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-
-                                    const isConflict = conflicts.some(c =>
-                                        (c.source_id === sourceId && c.target_id === targetId) ||
-                                        (c.source_id === targetId && c.target_id === sourceId)
-                                    );
-                                    if (isConflict) return [3, 2]; // Jagged line
-                                    return null;
-                                }}
                                 onNodeClick={traceTrail}
                                 onBackgroundClick={handleBackgroundClick}
-                                // Custom canvas rendering for premium feel
                                 nodeCanvasObject={(node: any, ctx, globalScale) => {
-                                    // Skip rendering label if in audit mode and not highlighted
                                     if (auditMode && highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) {
                                         const radius = 3;
                                         ctx.beginPath();
@@ -356,31 +388,26 @@ const GraphView: React.FC = () => {
                                     }
 
                                     const label = node.label;
-                                    const fontSize = 10 / globalScale; // Slightly smaller font
+                                    const fontSize = 10 / globalScale;
                                     ctx.font = `${fontSize}px Inter, Sans-Serif`;
                                     const textWidth = ctx.measureText(label).width;
                                     const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.4);
 
                                     if (node.x && node.y) {
-                                        // Draw circle node first (reduced size)
                                         ctx.beginPath();
-                                        const radius = 3; // Fixed, smaller radius
+                                        const radius = 4; // Slightly larger for better visibility
                                         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
                                         ctx.fillStyle = node.color;
                                         ctx.fill();
 
-                                        // Optional: Add a subtle glow or border
                                         ctx.strokeStyle = '#fff';
-                                        ctx.lineWidth = 1 / globalScale;
+                                        ctx.lineWidth = 1.5 / globalScale;
                                         ctx.stroke();
 
-                                        // Draw text label BELOW the node
-                                        const textYOffset = 6; // Push text down
-
-                                        // Check if dark mode is active (using theme context)
+                                        const textYOffset = 8;
                                         const isDarkMode = theme === 'dark';
 
-                                        // Text background
+                                        // Label Background
                                         ctx.fillStyle = isDarkMode ? 'rgba(30, 30, 30, 0.85)' : 'rgba(255, 255, 255, 0.85)';
                                         ctx.fillRect(
                                             node.x - bckgDimensions[0] / 2,
@@ -389,17 +416,22 @@ const GraphView: React.FC = () => {
                                             bckgDimensions[1]
                                         );
 
-                                        // Text
+                                        // Label Text
                                         ctx.textAlign = 'center';
                                         ctx.textBaseline = 'middle';
                                         ctx.fillStyle = isDarkMode ? '#E5E5E5' : '#1D1D1F';
                                         ctx.fillText(label, node.x, node.y + textYOffset + 2);
                                     }
                                 }}
+                                // Add link labels on hover if desired, or just relationship
+                                linkLabel="relation"
                             />
                         </div>
                     ) : (
-                        <div className="flex items-center justify-center h-full text-gray-400">Loading neural network...</div>
+                        <div className="flex items-center justify-center h-full text-gray-400 gap-3">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                            Loading Knowledge Graph...
+                        </div>
                     )}
                 </Card>
 

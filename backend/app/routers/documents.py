@@ -306,7 +306,8 @@ def delete_document(document_id: str, current_user: User = Depends(get_current_u
 		session.query(ActionItem).filter(ActionItem.document_id == document_id).delete()
 
 		# 5. Delete GraphNode (document) and related edges
-		# First, identify all nodes connected to this document
+		print(f"DEBUG: Deleting graph nodes/edges for {document_id}")
+		# First, identify edges connected to this document
 		connected_edges = session.exec(
 			select(GraphEdge).where(
 				(GraphEdge.source == document_id) | (GraphEdge.target == document_id)
@@ -320,12 +321,16 @@ def delete_document(document_id: str, current_user: User = Depends(get_current_u
 			else:
 				neighbor_ids.add(edge.source)
 		
-		# Delete edges connected to the document
+		# Delete edges iteratively
 		for edge in connected_edges:
 			session.delete(edge)
+		session.flush() # CRITICAL: Ensure edges are gone before blocking node delete
 		
-		# Delete the document node itself
-		session.query(GraphNode).filter(GraphNode.id == document_id).delete()
+		# Now safe to delete the document node
+		node = session.get(GraphNode, document_id)
+		if node:
+			session.delete(node)
+		session.flush()
 		
 		# Check neighbors: if they have no other edges, delete them (orphaned)
 		for nid in neighbor_ids:
@@ -335,7 +340,10 @@ def delete_document(document_id: str, current_user: User = Depends(get_current_u
 			).count()
 			
 			if remaining_edges_count == 0:
-				session.query(GraphNode).filter(GraphNode.id == nid).delete()
+				orphan = session.get(GraphNode, nid)
+				if orphan:
+					session.delete(orphan)
+		session.flush()
 
 		# 6. Delete file from filesystem
 		if os.path.exists(doc.path):
