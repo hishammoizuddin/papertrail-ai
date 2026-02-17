@@ -9,7 +9,9 @@ import Button from '../components/ui/Button';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Card from '../components/ui/Card';
+
 import ActionCenter from '../components/ActionCenter';
+import GlobalSearchButton from '../components/GlobalSearchButton';
 
 
 const statusBadge = (status: string) => {
@@ -189,7 +191,7 @@ const InboxPage: React.FC = () => {
 
 	return (
 		<Section title="Dashboard">
-			<div className="max-w-6xl mx-auto space-y-8 animate-fade-in relative">
+			<div className="max-w-6xl mx-auto space-y-4 animate-fade-in relative">
 				{/* Modal Portal */}
 				<DeleteConfirmationModal
 					isOpen={!!deleteId}
@@ -199,11 +201,12 @@ const InboxPage: React.FC = () => {
 				/>
 
 				{/* Dashboard Widget Area */}
-				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-					<div className="lg:col-span-2">
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+					<div className="flex flex-col gap-6">
 						<UploadDropzone onUpload={handleUpload} uploading={uploading} />
+						<GlobalSearchButton />
 					</div>
-					<div className="lg:col-span-1">
+					<div className="h-full">
 						<ActionCenter />
 					</div>
 				</div>

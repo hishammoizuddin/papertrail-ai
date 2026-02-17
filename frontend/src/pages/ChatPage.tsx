@@ -29,7 +29,7 @@ interface Message {
 
 const ChatPage: React.FC = () => {
 	const [messages, setMessages] = useState<Message[]>([
-		{ role: 'assistant', content: 'Hello! I can help you analyze documents or answer questions. I can also see images now!' }
+		{ role: 'assistant', content: 'Hello! I can help you analyze documents or answer questions from your entire knowledge base. Select a specific document above if you want to focus on just one.' }
 	]);
 	const [input, setInput] = useState('');
 	const [loading, setLoading] = useState(false);
@@ -43,8 +43,10 @@ const ChatPage: React.FC = () => {
 			try {
 				const res = await axios.get('http://localhost:8000/api/documents/');
 				setDocuments(res.data);
-				if (res.data && res.data.length > 0 && !selectedDoc) {
-					setSelectedDoc(res.data[0].id);
+				setDocuments(res.data);
+				// Default to Global Search (empty string) if not selected
+				if (!selectedDoc) {
+					setSelectedDoc("");
 				}
 			} catch (e) {
 				console.error(e);
@@ -115,7 +117,7 @@ const ChatPage: React.FC = () => {
 							value={selectedDoc}
 							onChange={(e) => setSelectedDoc(e.target.value)}
 						>
-							<option value="" disabled>Select a document...</option>
+							<option value="">All Documents (Global Search)</option>
 							{documents.map(doc => (
 								<option key={doc.id} value={doc.id}>{doc.filename}</option>
 							))}
