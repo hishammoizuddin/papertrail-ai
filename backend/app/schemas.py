@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from datetime import datetime, date
 
 class DocumentBase(BaseModel):
@@ -76,3 +76,19 @@ class ConflictItem(BaseModel):
 class ConflictReport(BaseModel):
     conflicts: List[ConflictItem]
     node_ids_analyzed: List[str]
+
+class DossierStats(BaseModel):
+    total_documents: int
+    first_interaction: Optional[datetime]
+    last_interaction: Optional[datetime]
+    total_value: Optional[float] = None
+    currency: str = "USD"
+
+class DossierResponse(BaseModel):
+    node_id: str
+    label: str
+    type: str
+    summary: Optional[str] = None
+    stats: DossierStats
+    related_documents: List[DocumentSummary]
+    related_actions: List[ActionItemBase]

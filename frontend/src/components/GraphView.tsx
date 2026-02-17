@@ -5,6 +5,7 @@ import Card from './ui/Card';
 import { Badge } from './ui/Badge';
 import Button from './ui/Button';
 import axios from 'axios';
+import DossierPanel, { DossierData } from './DossierPanel';
 
 interface Node {
     id: string;
@@ -41,6 +42,11 @@ const GraphView: React.FC = () => {
     const [conflicts, setConflicts] = useState<any[]>([]);
     const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
     const [highlightedLinks, setHighlightedLinks] = useState<Set<string>>(new Set());
+
+    // Dossier State
+    const [isDossierOpen, setIsDossierOpen] = useState(false);
+    const [dossierData, setDossierData] = useState<DossierData | null>(null);
+    const [loadingDossier, setLoadingDossier] = useState(false);
 
     const fetchGraph = async () => {
         setLoading(true);
@@ -129,6 +135,19 @@ const GraphView: React.FC = () => {
         }
     };
 
+    const fetchDossier = async (nodeId: string) => {
+        setLoadingDossier(true);
+        try {
+            const res = await axios.get(`/api/graph/dossier/${nodeId}`);
+            setDossierData(res.data);
+            setIsDossierOpen(true);
+        } catch (error) {
+            console.error("Failed to fetch dossier:", error);
+        } finally {
+            setLoadingDossier(false);
+        }
+    };
+
     // Trace the Trail Algorithm
     const traceTrail = (node: Node) => {
         const visitedNodes = new Set<string>();
@@ -173,6 +192,8 @@ const GraphView: React.FC = () => {
             setSelectedNode(node);
             setHighlightedNodes(new Set());
             setHighlightedLinks(new Set());
+            // Fetch dossier if it's an entity node (or even document node)
+            fetchDossier(node.id);
         }
     };
 
@@ -242,7 +263,14 @@ const GraphView: React.FC = () => {
                 </div>
             )}
 
-            <div className="flex gap-6 h-[calc(100vh-180px)] animate-fade-in">
+            <DossierPanel
+                isOpen={isDossierOpen}
+                onClose={() => setIsDossierOpen(false)}
+                data={dossierData}
+                isLoading={loadingDossier}
+            />
+
+            <div className="flex gap-6 h-[calc(100vh-180px)] animate-fade-in relative">
                 <Card className="flex-1 p-0 overflow-hidden relative border border-gray-200 dark:border-gray-800 shadow-xl bg-gray-50/50 dark:bg-gray-900/50">
                     {!loading ? (
                         <div ref={containerRef} className="w-full h-full">
@@ -427,7 +455,6 @@ const GraphView: React.FC = () => {
                             </div>
                         )}
                     </Card>
-
                     <Card className="p-4 bg-gradient-to-br from-blue-50 to-white dark:from-gray-800 dark:to-gray-900 border border-blue-100 dark:border-gray-700">
                         <h4 className="font-semibold text-blue-900 dark:text-blue-400 mb-2 text-sm">Legend</h4>
                         <div className="space-y-2 text-sm text-gray-800 dark:text-gray-300">
@@ -452,5 +479,4 @@ const GraphView: React.FC = () => {
         </Section>
     );
 };
-
 export default GraphView;

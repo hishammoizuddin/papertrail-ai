@@ -1,8 +1,10 @@
-from sqlmodel import Session, select, col, delete
-from app.models import Document, GraphNode, GraphEdge, User
+from sqlmodel import Session, select, col, delete, func, or_
+from app.models import Document, GraphNode, GraphEdge, User, ActionItem, Deadline
 from app.db import get_session
+from app.schemas import DossierResponse, DossierStats, DocumentSummary, ActionItemBase
 import json
 import uuid
+from datetime import datetime
 
 def rebuild_graph(session: Session, user: User):
     # 1. Identify existing nodes for this user to clean up
@@ -152,3 +154,125 @@ def get_graph_data(session: Session, user: User):
     )).all()
 
     return {"nodes": nodes, "links": edges}
+
+def get_entity_dossier(session: Session, user: User, node_id: str) -> DossierResponse:
+    # 1. Fetch the node to get details
+    node = session.get(GraphNode, node_id)
+    if not node:
+        return None  # Or raise HTTPException in router
+        
+    # Check ownership
+    if node.user_id and node.user_id != user.id:
+        return None
+
+    # 2. Find all connected Documents
+    # We look for edges where this node is Target (e.g. Doc -> ISSUED_BY -> IssuerNode)
+    # Or Source (less common for Entity nodes, but possible)
+    
+    connected_doc_ids = set()
+    
+    # Case A: Document -> Relation -> Entity Node (Most common)
+    incoming_edges = session.exec(select(GraphEdge).where(GraphEdge.target == node_id)).all()
+    for edge in incoming_edges:
+        # Check if source is a document (UUID format usually, or we can check prefix)
+        # Better: check if source exists in Document table
+        connected_doc_ids.add(edge.source)
+
+    # Case B: Entity Node -> Relation -> Document (Rare, but maybe "Entity -> OWNS -> Doc")
+    outgoing_edges = session.exec(select(GraphEdge).where(GraphEdge.source == node_id)).all()
+    for edge in outgoing_edges:
+        connected_doc_ids.add(edge.target)
+        
+    # Query the actual Documents
+    if not connected_doc_ids:
+        docs = []
+    else:
+        docs = session.exec(select(Document).where(col(Document.id).in_(connected_doc_ids))).all()
+    
+    # 3. Aggregate Stats
+    total_value = 0.0
+    dates = []
+    
+    doc_summaries = []
+    for doc in docs:
+        doc_summaries.append(DocumentSummary(
+            id=doc.id,
+            filename=doc.filename,
+            path=doc.path,
+            created_at=doc.created_at,
+            doc_type=doc.doc_type,
+            issuer=doc.issuer,
+            primary_due_date=doc.primary_due_date,
+            extracted_json=doc.extracted_json,
+            status=doc.status,
+            error_message=doc.error_message
+        ))
+        
+        # Extract value if present
+        if doc.extracted_json:
+            try:
+                data = json.loads(doc.extracted_json) if isinstance(doc.extracted_json, str) else doc.extracted_json
+                if data and data.get("amounts"):
+                    # Sum up found amounts or just take first? Let's sum for now or take max.
+                    # Simplest: Take first amount found
+                    val = data.get("amounts")[0].get("value")
+                    if val:
+                        total_value += float(val)
+                
+                if data and data.get("dates"):
+                    for d_obj in data.get("dates"):
+                         if d_obj.get("date"):
+                             # Simple string parsing or try/except
+                             try:
+                                 # Try ISO first, then others if needed. Assuming ISO/Standard from extraction
+                                 dt = datetime.fromisoformat(d_obj.get("date"))
+                                 dates.append(dt)
+                             except:
+                                 pass
+            except:
+                pass
+        
+        # Also use created_at as fallback date
+        dates.append(doc.created_at)
+
+    sorted_dates = sorted(dates)
+    first_interaction = sorted_dates[0] if sorted_dates else None
+    last_interaction = sorted_dates[-1] if sorted_dates else None
+    
+    # 4. Find Associated Actions
+    # We find actions linked to these documents
+    doc_ids_list = [d.id for d in docs]
+    actions = []
+    if doc_ids_list:
+        actions = session.exec(select(ActionItem).where(col(ActionItem.document_id).in_(doc_ids_list))).all()
+        # Also could fetch Deadlines
+        
+    action_summaries = [
+        ActionItemBase(
+            id=a.id,
+            document_id=a.document_id,
+            type=a.type,
+            description=a.description,
+            status=a.status,
+            payload=a.payload,
+            created_at=a.created_at
+        ) for a in actions
+    ]
+
+    stats = DossierStats(
+        total_documents=len(docs),
+        first_interaction=first_interaction,
+        last_interaction=last_interaction,
+        total_value=round(total_value, 2) if total_value > 0 else None,
+        currency="USD" # Default for now
+    )
+
+    return DossierResponse(
+        node_id=node.id,
+        label=node.label,
+        type=node.type,
+        summary=f"Entity associated with {len(docs)} documents.", # Placeholder for AI summary
+        stats=stats,
+        related_documents=doc_summaries,
+        related_actions=action_summaries
+    )
