@@ -7,6 +7,7 @@ import Button from './ui/Button';
 import axios from 'axios';
 import DossierPanel, { DossierData } from './DossierPanel';
 import { BookOpen } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 
 interface Node {
@@ -31,6 +32,7 @@ interface GraphData {
 
 const GraphView: React.FC = () => {
     const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
+    const { theme } = useTheme();
     const [loading, setLoading] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -375,8 +377,8 @@ const GraphView: React.FC = () => {
                                         // Draw text label BELOW the node
                                         const textYOffset = 6; // Push text down
 
-                                        // Check if dark mode is active (basic check via body class)
-                                        const isDarkMode = document.documentElement.classList.contains('dark');
+                                        // Check if dark mode is active (using theme context)
+                                        const isDarkMode = theme === 'dark';
 
                                         // Text background
                                         ctx.fillStyle = isDarkMode ? 'rgba(30, 30, 30, 0.85)' : 'rgba(255, 255, 255, 0.85)';

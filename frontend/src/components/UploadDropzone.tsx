@@ -26,8 +26,8 @@ const UploadDropzone: React.FC<Props> = ({ onUpload, uploading }) => {
 
 	return (
 		<div
-			className={`relative group cursor-pointer transition-all duration-300 rounded-2xl p-10 flex flex-col items-center justify-center gap-4 text-center border-2 border-dashed
-                ${dragActive || uploading ? 'border-[#0071E3] bg-blue-50/50' : 'border-gray-200 hover:border-[#0071E3]/50 hover:bg-gray-50'}
+			className={`relative group cursor-pointer transition-all duration-300 rounded-2xl p-10 flex flex-col items-center justify-center gap-4 text-center border-2 border-dashed border-gray-200 dark:border-gray-700
+                ${dragActive || uploading ? 'border-[#0071E3] bg-blue-50/50 dark:bg-blue-900/10' : 'hover:border-[#0071E3]/50 hover:bg-gray-50 dark:hover:bg-gray-800'}
                 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
 			onDragOver={e => { e.preventDefault(); setDragActive(true); }}
 			onDragLeave={e => { e.preventDefault(); setDragActive(false); }}
@@ -48,7 +48,7 @@ const UploadDropzone: React.FC<Props> = ({ onUpload, uploading }) => {
 			</div>
 
 			<div className="space-y-1">
-				<p className="text-lg font-medium text-[#1D1D1F]">
+				<p className="text-lg font-medium text-[#1D1D1F] dark:text-white">
 					{uploading ? 'Uploading...' : 'Drop your documents here'}
 				</p>
 				<p className="text-sm text-gray-500">

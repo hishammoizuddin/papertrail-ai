@@ -13,8 +13,8 @@ const Button: React.FC<ButtonProps> = ({ children, onClick, className = '', disa
 
   const variants = {
     primary: "bg-[#0071E3] text-white hover:bg-[#0077ED] shadow-sm hover:shadow-md",
-    secondary: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50",
-    ghost: "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-black",
+    secondary: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 dark:hover:bg-gray-600",
+    ghost: "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-black dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white",
     danger: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
   };
 
