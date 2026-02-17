@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { listDocuments, uploadDocument, processDocument, Document } from '../api/documents';
+import { listDocuments, uploadDocument, processDocument, deleteDocument, Document } from '../api/documents';
 
 import UploadDropzone from '../components/UploadDropzone';
 import { Section } from '../components/ui/Section';
@@ -73,6 +73,24 @@ const InboxPage: React.FC = () => {
 		}
 	};
 
+	const handleDelete = async (docId: string, event: React.MouseEvent) => {
+		event.preventDefault(); // Prevent link navigation
+		event.stopPropagation();
+
+		if (!window.confirm("Are you sure you want to delete this document? This action cannot be undone.")) {
+			return;
+		}
+
+		try {
+			// Optimistic update
+			setDocuments(prev => prev.filter(d => d.id !== docId));
+			await deleteDocument(docId);
+		} catch (e: any) {
+			setError(e.message || 'Delete failed');
+			fetchDocs(); // Revert on failure
+		}
+	};
+
 	const handleUpload = async (file: File) => {
 		setUploading(true);
 		setError(null);
@@ -117,13 +135,22 @@ const InboxPage: React.FC = () => {
 									exit={{ opacity: 0, y: 20 }}
 									transition={{ delay: idx * 0.05, duration: 0.3 }}
 								>
-									<Card className="h-full flex flex-col justify-between group hover:ring-2 hover:ring-[#0071E3]/20 transition-all p-5 dark:bg-gray-800 dark:border-gray-700">
+									<Card className="h-full flex flex-col justify-between group hover:ring-2 hover:ring-[#0071E3]/20 transition-all p-5 dark:bg-gray-800 dark:border-gray-700 relative">
 										<Link to={`/documents/${doc.id}`} className="block space-y-3">
 											<div className="flex items-start justify-between">
 												<div className="p-2 bg-blue-50 text-[#0071E3] rounded-lg dark:bg-blue-900/30 dark:text-blue-400">
 													<svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
 												</div>
-												{statusBadge(doc.status)}
+												<div className="flex items-center gap-2">
+													{statusBadge(doc.status)}
+													<button
+														onClick={(e) => handleDelete(doc.id, e)}
+														className="text-gray-400 hover:text-red-500 transition-colors p-1"
+														title="Delete document"
+													>
+														<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+													</button>
+												</div>
 											</div>
 											<div>
 												<h3 className="font-semibold text-gray-900 truncate pr-2 dark:text-white" title={doc.filename}>{doc.filename}</h3>

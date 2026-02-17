@@ -27,19 +27,33 @@ def upload_document(file: UploadFile = File(...)):
 	try:
 		if file.content_type not in ["application/pdf", "image/png", "image/jpeg"]:
 			raise HTTPException(status_code=400, detail="Only PDF, PNG, JPG allowed.")
-		# Check file size safely
-		file.file.seek(0, 2)
-		file_size = file.file.tell()
-		file.file.seek(0)
-		
-		if file_size > MAX_UPLOAD_MB * 1024 * 1024:
-			raise HTTPException(status_code=400, detail="File too large.")
+		# Robust streaming upload of file content to disk
+		# This avoids seek(0,2) which can be problematic and allows checking size during stream
 		doc_id = str(uuid.uuid4())
 		doc_dir = os.path.join(UPLOAD_ROOT, doc_id)
 		os.makedirs(doc_dir, exist_ok=True)
 		file_path = os.path.join(doc_dir, file.filename)
+		
+		# Define buffer size (e.g. 1MB chunks)
+		CHUNK_SIZE = 1024 * 1024
+		total_size = 0
+		MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+		
 		with open(file_path, "wb") as f:
-			shutil.copyfileobj(file.file, f)
+			while True:
+				chunk = file.file.read(CHUNK_SIZE)
+				if not chunk:
+					break
+				total_size += len(chunk)
+				if total_size > MAX_BYTES:
+					# Cleanup partial file
+					f.close()
+					if os.path.exists(file_path):
+						os.remove(file_path)
+					if os.path.isdir(doc_dir) and not os.listdir(doc_dir):
+						os.rmdir(doc_dir)
+					raise HTTPException(status_code=400, detail="File too large.")
+				f.write(chunk)
 		doc = Document(
 			id=doc_id,
 			filename=file.filename,
@@ -255,3 +269,94 @@ def stream_pdf(document_id: str):
 			with open(doc.path, mode="rb") as file_like:
 				yield from file_like
 		return StreamingResponse(iterfile(), media_type="application/pdf")
+
+@router.delete("/{document_id}", status_code=204)
+def delete_document(document_id: str):
+	with get_session() as session:
+		doc = session.get(Document, document_id)
+		if not doc:
+			raise HTTPException(status_code=404, detail="Document not found.")
+		
+		try:
+			# 1. Delete Pinecone vectors
+			try:
+				pinecone_store.delete_vectors_by_document(document_id)
+			except Exception as e:
+				print(f"Warning: Failed to delete vectors for {document_id}: {e}")
+
+			# 2. Delete SQL Chunk records
+			session.query(Chunk).filter(Chunk.document_id == document_id).delete()
+			
+			# 3. Delete SQL Deadline records
+			session.query(Deadline).filter(Deadline.document_id == document_id).delete()
+
+			# 4. Delete SQL ActionItem records (Import locally to avoid circular imports if needed, 
+			#    but we can also duplicate the model import or just use SQL)
+			from app.models import ActionItem, GraphNode, GraphEdge
+			session.query(ActionItem).filter(ActionItem.document_id == document_id).delete()
+
+			# 5. Delete GraphNode (document) and related edges
+			# First, identify all nodes connected to this document
+			connected_edges = session.exec(
+				select(GraphEdge).where(
+					(GraphEdge.source == document_id) | (GraphEdge.target == document_id)
+				)
+			).all()
+			
+			neighbor_ids = set()
+			for edge in connected_edges:
+				if edge.source == document_id:
+					neighbor_ids.add(edge.target)
+				else:
+					neighbor_ids.add(edge.source)
+			
+			# Delete edges connected to the document
+			for edge in connected_edges:
+				session.delete(edge)
+			
+			# Delete the document node itself
+			session.query(GraphNode).filter(GraphNode.id == document_id).delete()
+			
+			# Check neighbors: if they have no other edges, delete them (orphaned)
+			for nid in neighbor_ids:
+				# Check if there are ANY edges left for this node
+				remaining_edges_count = session.query(GraphEdge).filter(
+					(GraphEdge.source == nid) | (GraphEdge.target == nid)
+				).count()
+				
+				if remaining_edges_count == 0:
+					session.query(GraphNode).filter(GraphNode.id == nid).delete()
+
+			# 6. Delete file from filesystem
+			if os.path.exists(doc.path):
+				try:
+					os.remove(doc.path)
+					# Also try to remove the directory if it's a UUID dir containing just this file
+					parent_dir = os.path.dirname(doc.path)
+					if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
+						os.rmdir(parent_dir)
+					# If the parent dir is the uuid one (which it is based on upload logic), we should remove it
+					# Upload logic: UPLOAD_ROOT / doc_id / filename
+					# doc.path = .../doc_id/filename
+					# parent_dir = .../doc_id
+					# We should remove parent_dir regardless of whether it's empty if it was created for this doc
+					if os.path.basename(parent_dir) == doc.id:
+						shutil.rmtree(parent_dir, ignore_errors=True)
+				except Exception as e:
+					print(f"Warning: Failed to delete file/directory for {document_id}: {e}")
+
+			# 7. Delete Document record
+			session.delete(doc)
+			session.commit()
+			
+			# Rebuild graph to clean up any orphaned nodes if necessary, 
+			# though strict orphaned node cleanup might be too aggressive/expensive here.
+			# For now, we trust the graph service to rebuild if needed, or we just leave orphaned nodes ( issuers/tags)
+			# which might be reused. 
+			
+			return Response(status_code=204)
+			
+		except Exception as e:
+			session.rollback()
+			print(f"Error deleting document {document_id}: {e}")
+			raise HTTPException(status_code=500, detail=f"Failed to delete document: {e}")

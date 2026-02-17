@@ -14,14 +14,14 @@ export interface Document {
 }
 
 export async function listDocuments(): Promise<Document[]> {
-  const res = await axios.get<Document[]>('/api/documents');
+  const res = await axios.get<Document[]>('/api/documents/');
   return res.data;
 }
 
 export async function uploadDocument(file: File): Promise<Document> {
   const form = new FormData();
   form.append('file', file);
-  const res = await axios.post<Document>('/api/documents', form, {
+  const res = await axios.post<Document>('/api/documents/', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return res.data;
@@ -39,4 +39,8 @@ export async function getDocument(documentId: string): Promise<Document> {
 
 export function getDocumentPdfUrl(documentId: string): string {
   return `/api/documents/${documentId}/pdf`;
+}
+
+export async function deleteDocument(documentId: string): Promise<void> {
+  await axios.delete(`/api/documents/${documentId}`);
 }
