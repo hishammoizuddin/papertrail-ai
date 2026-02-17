@@ -28,15 +28,15 @@ const InboxPage: React.FC = () => {
 	const [uploading, setUploading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	const fetchDocs = async () => {
-		setLoading(true);
+	const fetchDocs = async (silent = false) => {
+		if (!silent) setLoading(true);
 		try {
 			const docs = await listDocuments();
 			setDocuments(docs);
 		} catch (e: any) {
 			setError(e.message || 'Failed to load documents');
 		} finally {
-			setLoading(false);
+			if (!silent) setLoading(false);
 		}
 	};
 
@@ -48,7 +48,7 @@ const InboxPage: React.FC = () => {
 	useEffect(() => {
 		if (documents.some(d => d.status === 'processing')) {
 			const interval = setInterval(() => {
-				fetchDocs();
+				fetchDocs(true);
 			}, 2000);
 			return () => clearInterval(interval);
 		}
