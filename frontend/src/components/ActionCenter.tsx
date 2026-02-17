@@ -67,9 +67,10 @@ const ActionCenter: React.FC = () => {
 
     if (loading) return <div className="p-4 text-center text-gray-400">Loading actions...</div>;
     if (actions.length === 0) return (
-        <Card className="p-6 text-center text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-gray-800/50 border-dashed border-2 border-gray-200 dark:border-gray-700">
-            <div className="mb-2 text-2xl">🎉</div>
-            No pending actions. You're all caught up!
+        <Card className="p-8 text-center text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-gray-800/50 border-dashed border-2 border-gray-200 dark:border-gray-700 min-h-[200px] flex flex-col items-center justify-center">
+            <div className="mb-4 text-4xl animate-bounce">🎉</div>
+            <div className="text-lg font-medium">No pending actions</div>
+            <div className="text-sm text-gray-400 dark:text-gray-500 mt-1">You're all caught up! Enjoy your day.</div>
         </Card>
     );
 
@@ -88,7 +89,7 @@ const ActionCenter: React.FC = () => {
                     return (
                         <div key={action.id} className={`group flex items-start justify-between gap-4 p-4 rounded-xl border shadow-sm hover:shadow-md transition-all duration-200
                         ${isHighSeverity ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-900' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700'}`}>
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 flex-1 min-w-0">
                                 <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center text-lg
                                 ${isHighSeverity ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400' :
                                         action.type === 'email' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' :

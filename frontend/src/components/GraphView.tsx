@@ -44,6 +44,11 @@ const GraphView: React.FC = () => {
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
     const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
+    const truncateLabel = (label: string, maxLength: number = 20) => {
+        if (label.length <= maxLength) return label;
+        return label.substring(0, maxLength) + '...';
+    };
+
     const [rebuilding, setRebuilding] = useState(false);
 
     // Advanced Features State
@@ -281,6 +286,16 @@ const GraphView: React.FC = () => {
         return () => window.removeEventListener('resize', updateDimensions);
     }, []);
 
+    useEffect(() => {
+        if (graphRef.current) {
+            // Apply custom forces
+            graphRef.current.d3Force('charge').strength(-200);
+            graphRef.current.d3Force('link').distance(100);
+            // Add collision to prevent overlap
+            // graphRef.current.d3Force('collide', d3.forceCollide(20)); // requires d3 import, skipping for now as charge should handle it
+        }
+    }, [data, auditMode]); // Re-apply when data changes or mode changes
+
     return (
         <Section title="Knowledge Map">
             <GraphControls
@@ -334,6 +349,10 @@ const GraphView: React.FC = () => {
                                 height={dimensions.height}
                                 graphData={filteredData}
                                 nodeLabel="label"
+                                d3AlphaDecay={0.02}
+                                d3VelocityDecay={0.3}
+                                cooldownTicks={100}
+                                onEngineStop={() => graphRef.current.zoomToFit(400)}
                                 nodeColor={(node: any) => {
                                     if (auditMode && highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) {
                                         return '#e5e7eb'; // Gray out non-highlighted nodes
@@ -395,7 +414,8 @@ const GraphView: React.FC = () => {
                                     const label = node.label;
                                     const fontSize = 10 / globalScale;
                                     ctx.font = `${fontSize}px Inter, Sans-Serif`;
-                                    const textWidth = ctx.measureText(label).width;
+                                    const displayLabel = truncateLabel(label);
+                                    const textWidth = ctx.measureText(displayLabel).width;
                                     const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.4);
 
                                     if (node.x && node.y) {
@@ -425,7 +445,8 @@ const GraphView: React.FC = () => {
                                         ctx.textAlign = 'center';
                                         ctx.textBaseline = 'middle';
                                         ctx.fillStyle = isDarkMode ? '#E5E5E5' : '#1D1D1F';
-                                        ctx.fillText(label, node.x, node.y + textYOffset + 2);
+                                        const displayLabel = truncateLabel(label);
+                                        ctx.fillText(displayLabel, node.x, node.y + textYOffset + 2);
                                     }
                                 }}
                                 // Add link labels on hover if desired, or just relationship
