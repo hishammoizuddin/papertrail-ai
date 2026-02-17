@@ -60,7 +60,7 @@ const Login = () => {
                             transition={{ delay: 0.3 }}
                             className="text-3xl font-bold bg-gradient-to-br from-white to-gray-400 bg-clip-text text-transparent mb-2"
                         >
-                            Welcome Back
+                            Welcome
                         </motion.h2>
                         <motion.p
                             initial={{ y: -10, opacity: 0 }}
