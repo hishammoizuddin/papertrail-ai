@@ -31,7 +31,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
     nodes
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['document', 'person', 'organization', 'issuer', 'category', 'tag', 'location']));
+    const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['document', 'person', 'organization', 'issuer', 'category', 'tag', 'location', 'uncategorized']));
     const [showFilters, setShowFilters] = useState(false);
     const [suggestions, setSuggestions] = useState<any[]>([]);
 
@@ -105,7 +105,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
                         {showFilters && (
                             <div className="absolute top-full left-0 mt-2 p-3 bg-white dark:bg-[#1c1c1e] border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl w-48 z-30">
                                 <div className="space-y-2">
-                                    {['document', 'person', 'organization', 'issuer', 'category', 'tag'].map(type => (
+                                    {['document', 'person', 'organization', 'issuer', 'category', 'tag', 'location', 'uncategorized'].map(type => (
                                         <label key={type} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300 capitalize hover:text-blue-500">
                                             <input
                                                 type="checkbox"

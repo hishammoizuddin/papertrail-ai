@@ -103,6 +103,11 @@ const GraphView: React.FC = () => {
                         val = 8;
                         color = '#AF52DE'; // Purple
                         break;
+                    default:
+                        val = 6;
+                        color = '#8E8E93'; // Gray - Uncategorized
+                        n.type = 'uncategorized'; // Normalize
+                        break;
                 }
 
                 return {
@@ -509,6 +514,7 @@ const GraphView: React.FC = () => {
                             <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#FF2D55]"></span> Tag</div>
                             <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#5AC8FA]"></span> Location</div>
                             <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#AF52DE]"></span> Person</div>
+                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#8E8E93]"></span> Uncategorized</div>
                         </div>
                     </Card>
 

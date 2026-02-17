@@ -4,6 +4,7 @@ from app.db import get_session
 from app.schemas import DossierResponse, DossierStats, DocumentSummary, ActionItemBase
 import json
 import uuid
+import re
 from datetime import datetime
 
 # --- HEURISTIC HELPERS ---
@@ -13,6 +14,38 @@ NON_PERSON_KEYWORDS = {
     "team", "group", "committee", "board", "council", "agency", "irs", "tax", 
     "government", "city", "state", "county", "unknown", "n/a", "none"
 }
+
+def normalize_entity_name(name: str) -> str:
+    """
+    Normalizes an entity name to improve merging.
+    1. Lowercase
+    2. Remove punctuation (keep alphanumeric and spaces)
+    3. Strip common corporate suffixes
+    
+    Example: "TechCorp, Inc." -> "techcorp"
+    """
+    if not name: return ""
+    
+    # Lowercase and strip
+    n = name.lower().strip()
+    
+    # Remove punctuation using regex (keep letters, numbers, spaces)
+    n = re.sub(r'[^\w\s]', '', n)
+    
+    # Common corporate suffixes to strip (must be at end of string)
+    suffixes = [
+        " inc", " incorporated", " corp", " corporation", " llc", " ltd", " limited",
+        " co", " company", " gmbh", " sarl", " sa", " plc"
+    ]
+    suffixes.sort(key=len, reverse=True)
+    
+    for suffix in suffixes:
+        if n.endswith(suffix):
+            n = n[:-len(suffix)].strip()
+            break
+            
+    return n
+
 
 def is_likely_person(name):
     if not name: return False
@@ -67,11 +100,18 @@ def rebuild_graph(session: Session, user: User):
     unique_nodes = {} # id -> GraphNode
     all_edges = []
 
-    # Helper to create scoped entity node
+   # Helper to create scoped entity node
     def get_or_create_node(entity_type, name, properties=None):
         if not name: return None
-        # SCOPED ID: user_id:type:slug
-        slug = name.strip().lower().replace(' ', '_').replace('.', '').replace(',', '')
+        # SCOPED ID: user_id:type:normalized_slug
+        
+        # New Resolution Logic:
+        normalized_name = normalize_entity_name(name)
+        if not normalized_name: return None # Should not happen if name exists
+        
+        # Create slug from normalized name (remove spaces for ID)
+        slug = normalized_name.replace(' ', '')
+        
         node_id = f"{user.id}:{entity_type}:{slug}"
         
         if node_id not in unique_nodes:
