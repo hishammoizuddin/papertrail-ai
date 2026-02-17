@@ -8,12 +8,16 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 
+import axios from 'axios';
+
 const DocumentDetailPage: React.FC = () => {
 	const { id } = useParams<{ id: string }>();
 	const [doc, setDoc] = useState<Document | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [processing, setProcessing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+	const [pdfError, setPdfError] = useState<string | null>(null);
 
 	const fetchDoc = async () => {
 		if (!id) return;
@@ -30,6 +34,27 @@ const DocumentDetailPage: React.FC = () => {
 	};
 
 	useEffect(() => { fetchDoc(); }, [id]);
+
+	useEffect(() => {
+		const fetchPdf = async () => {
+			if (!id) return;
+			try {
+				const response = await axios.get(`/api/documents/${id}/pdf`, {
+					responseType: 'blob'
+				});
+				const url = URL.createObjectURL(response.data);
+				setPdfUrl(url);
+			} catch (e) {
+				console.error("Failed to load PDF", e);
+				setPdfError("Failed to load PDF preview.");
+			}
+		};
+		fetchPdf();
+
+		return () => {
+			if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+		};
+	}, [id]);
 
 	const handleReextract = async () => {
 		if (!id) return;
@@ -106,11 +131,17 @@ const DocumentDetailPage: React.FC = () => {
 
 					<Card className="flex flex-col h-full min-h-[500px]">
 						<h2 className="text-xl font-semibold mb-6 text-[#1D1D1F]">Document Preview</h2>
-						<iframe
-							src={getDocumentPdfUrl(doc.id)}
-							title="PDF Preview"
-							className="w-full flex-grow rounded-xl border border-gray-200 bg-gray-50"
-						/>
+						{pdfUrl ? (
+							<iframe
+								src={pdfUrl}
+								title="PDF Preview"
+								className="w-full flex-grow rounded-xl border border-gray-200 bg-gray-50"
+							/>
+						) : (
+							<div className="flex items-center justify-center h-full text-gray-400">
+								{pdfError ? pdfError : 'Loading PDF...'}
+							</div>
+						)}
 					</Card>
 				</div>
 			</div>

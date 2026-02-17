@@ -3,6 +3,8 @@ import ForceGraph2D from 'react-force-graph-2d';
 import { Section } from './ui/Section';
 import Card from './ui/Card';
 import { Badge } from './ui/Badge';
+import Button from './ui/Button';
+import axios from 'axios';
 
 interface Node {
     id: string;
@@ -31,65 +33,81 @@ const GraphView: React.FC = () => {
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
     const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
+    const [rebuilding, setRebuilding] = useState(false);
+
+    const fetchGraph = async () => {
+        setLoading(true);
+        try {
+            // Use axios (global instance configured in AuthContext) for authentication
+            const res = await axios.get('/api/graph/data');
+            const graphData = res.data;
+
+            // Process data for visualization
+            const nodes = graphData.nodes.map((n: any) => {
+                let val = 8;
+                let color = '#AF52DE'; // Default purple
+
+                switch (n.type) {
+                    case 'document':
+                        val = 15;
+                        color = '#0071E3'; // Blue
+                        break;
+                    case 'issuer':
+                        val = 12;
+                        color = '#34C759'; // Green
+                        break;
+                    case 'category':
+                        val = 10;
+                        color = '#FF9500'; // Orange
+                        break;
+                    case 'tag':
+                        val = 6;
+                        color = '#FF2D55'; // Pink/Red
+                        break;
+                    case 'organization':
+                        val = 10;
+                        color = '#5856D6'; // Indigo
+                        break;
+                    case 'location':
+                        val = 8;
+                        color = '#5AC8FA'; // Light Blue
+                        break;
+                    case 'person':
+                        val = 8;
+                        color = '#AF52DE'; // Purple
+                        break;
+                }
+
+                return {
+                    ...n,
+                    val,
+                    color,
+                    // Add extracted properties for easy access
+                    properties: n.properties || {}
+                };
+            });
+
+            setData({ nodes, links: graphData.links });
+        } catch (error) {
+            console.error("Failed to fetch graph data:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRebuild = async () => {
+        setRebuilding(true);
+        try {
+            await axios.post('/api/graph/rebuild');
+            await fetchGraph();
+        } catch (error) {
+            console.error("Failed to rebuild graph:", error);
+        } finally {
+            setRebuilding(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchGraph = async () => {
-            try {
-                const res = await fetch('http://localhost:8000/api/graph/data');
-                const graphData = await res.json();
-
-                // Process data for visualization
-                const nodes = graphData.nodes.map((n: any) => {
-                    let val = 8;
-                    let color = '#AF52DE'; // Default purple
-
-                    switch (n.type) {
-                        case 'document':
-                            val = 15;
-                            color = '#0071E3'; // Blue
-                            break;
-                        case 'issuer':
-                            val = 12;
-                            color = '#34C759'; // Green
-                            break;
-                        case 'category':
-                            val = 10;
-                            color = '#FF9500'; // Orange
-                            break;
-                        case 'tag':
-                            val = 6;
-                            color = '#FF2D55'; // Pink/Red
-                            break;
-                        case 'organization':
-                            val = 10;
-                            color = '#5856D6'; // Indigo
-                            break;
-                        case 'location':
-                            val = 8;
-                            color = '#5AC8FA'; // Light Blue
-                            break;
-                        case 'person':
-                            val = 8;
-                            color = '#AF52DE'; // Purple
-                            break;
-                    }
-
-                    return {
-                        ...n,
-                        val,
-                        color,
-                        // Add extracted properties for easy access
-                        properties: n.properties || {}
-                    };
-                });
-
-                setData({ nodes, links: graphData.links });
-            } catch (error) {
-                console.error("Failed to fetch graph data:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchGraph();
 
         const updateDimensions = () => {
@@ -109,6 +127,11 @@ const GraphView: React.FC = () => {
 
     return (
         <Section title="Mind Map">
+            <div className="flex justify-end mb-4">
+                <Button onClick={handleRebuild} disabled={rebuilding}>
+                    {rebuilding ? 'Rebuilding...' : 'Rebuild Graph'}
+                </Button>
+            </div>
             <div className="flex gap-6 h-[calc(100vh-180px)] animate-fade-in">
                 <Card className="flex-1 p-0 overflow-hidden relative border border-gray-200 dark:border-gray-800 shadow-xl bg-gray-50/50 dark:bg-gray-900/50">
                     {!loading ? (
@@ -174,8 +197,12 @@ const GraphView: React.FC = () => {
                     )}
                 </Card>
 
-                {/* Side Panel for Node Details */}
+                {/* Side Panel and Legend remain same... omitting for brevity if not changed, but must include to close tag properly if ReplaceFileContent requires strict block. 
+                   Actually, ReplaceFileContent replaces the TargetContent mostly. 
+                   I will target the existing useEffect and render and replace them.
+                */}
                 <div className="w-80 flex flex-col gap-4">
+                    {/* ... (rest of the component) ... */}
                     <Card className="p-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-100 dark:border-gray-700 h-full text-gray-900 dark:text-gray-100">
                         <h3 className="text-lg font-semibold text-[#1D1D1F] dark:text-white mb-4">Node Details</h3>
                         {selectedNode ? (

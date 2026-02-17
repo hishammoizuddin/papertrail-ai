@@ -15,6 +15,7 @@ def generate_actions_for_document(session: Session, doc: Document):
         for deadline in data.get("deadlines", []):
             action = ActionItem(
                 document_id=doc.id,
+                user_id=doc.user_id,
                 type="calendar" if deadline.get("due_date") else "todo",
                 description=f"Deadline: {deadline.get('action')} by {deadline.get('due_date')}",
                 payload={
@@ -31,6 +32,7 @@ def generate_actions_for_document(session: Session, doc: Document):
         for rec in data.get("recommended_actions", []):
             action = ActionItem(
                 document_id=doc.id,
+                user_id=doc.user_id,
                 type="todo",
                 description=rec, # Use the raw recommendation as description
                 payload={
@@ -70,6 +72,7 @@ def generate_actions_for_document(session: Session, doc: Document):
 
                  action = ActionItem(
                     document_id=doc.id,
+                    user_id=doc.user_id,
                     type="calendar",
                     description=desc,
                     payload={
@@ -87,6 +90,7 @@ def generate_actions_for_document(session: Session, doc: Document):
         if data.get("issuer") and "Invoice" in (doc.doc_type or ""):
              action = ActionItem(
                 document_id=doc.id,
+                user_id=doc.user_id,
                 type="email",
                 description=f"Draft email to {data.get('issuer')} regarding Invoice",
                 payload={

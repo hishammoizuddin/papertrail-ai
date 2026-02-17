@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import documents, chat, timeline, graph, actions
+from app.routers import documents, chat, timeline, graph, actions, auth
 from app.db import init_db
 from contextlib import asynccontextmanager
 import os
@@ -29,6 +29,7 @@ app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(timeline.router, prefix="/api/timeline", tags=["timeline"])
 app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
 app.include_router(actions.router, prefix="/api/actions", tags=["actions"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
 @app.get("/api/health")
 def health():

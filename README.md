@@ -4,6 +4,7 @@ A local-first, production-quality document management and AI extraction app. Pap
 
 ## Features
 
+- **Secure Authentication**: Robust user management with Login/Signup, JWT-based sessions, and secure password hashing.
 - **Smart Dashboard**: Centralized hub for managing all your uploaded documents.
 - **Advanced Document Processing**:
   - Upload PDFs and Images.
@@ -11,22 +12,24 @@ A local-first, production-quality document management and AI extraction app. Pap
   - Intelligent chunking and embedding.
   - Automatic classification of document types (Invoices, Contracts, etc.).
 - **Interactive Chat (RAG)**: Chat with your documents using Retrieval-Augmented Generation (RAG) with accurate citations.
-- **Mind Map**: Visualize connections and relationships between your documents (Entities, Issuers, Dates) with an interactive graph view.
+- **Mind Map**: Visualize connections and relationships between your documents (Entities, Issuers, Dates) with an interactive graph view. **Now supports multi-tenancy with isolated data for each user.**
 - **Smart Actions**: Automatically extracts actionable items (Deadlines, To-Dos) from your documents.
 - **Vector Search**: Semantic search capabilities powered by Pinecone.
-- **Modern UI**: Sleek interface with Dark Mode support.
+- **Modern UI**: Sleek glassmorphism design with Dark Mode support and smooth animations.
 
 ## Tech Stack
 
 ### Backend
 - **Framework**: FastAPI (Python)
 - **Database**: SQLModel (MySQL), Pinecone (Vector DB)
+- **Authentication**: OAuth2 with Password (Bearer), Passlib (Bcrypt), Python-Jose (JWT)
 - **AI/ML**: OpenAI API, PyMuPDF, Pytesseract, Pillow
 - **Environment**: Python 3.10+
 
 ### Frontend
 - **Framework**: React 19 (Vite)
 - **Styling**: TailwindCSS, PostCSS
+- **Routing**: React Router v7
 - **Visualization**: React Force Graph 2d
 - **Animations**: Framer Motion
 - **HTTP Client**: Axios
@@ -89,6 +92,9 @@ A local-first, production-quality document management and AI extraction app. Pap
      DB_PASSWORD=papertrail_password
      DB_NAME=papertrailai
      DB_PORT=3306
+     
+     # Security
+     SECRET_KEY=your_super_secret_key_here
      ```
 
 6. **Run the server:**
@@ -117,16 +123,18 @@ A local-first, production-quality document management and AI extraction app. Pap
 
 ## Usage
 
-1. **Upload**: Use the Dashboard to upload your PDF or Image files.
-2. **Process**: The system automatically extracts text, generates embeddings, and identifies entities.
-3. **Analyze**: Use the Mind Map to see document relationships.
-4. **Chat**: Ask questions about your documents in the Chat interface to get answers with citations.
-5. **Actions**: Review automatically generated action items and deadlines.
+1. **Sign Up / Login**: Create a new account or log in to access your secure dashboard.
+2. **Upload**: Use the Dashboard to upload your PDF or Image files.
+3. **Process**: The system automatically extracts text, generates embeddings, and identifies entities.
+4. **Analyze**: Use the Mind Map to see document relationships.
+5. **Chat**: Ask questions about your documents in the Chat interface to get answers with citations.
+6. **Actions**: Review automatically generated action items and deadlines.
 
 ## Troubleshooting
 
 - **Data too long errors**: Ensure your database tables are using `LONGTEXT` for content fields. The backend should handle this automatically on setup.
 - **Connection refused**: Ensure MySQL is running on port 3306 and your `.env` credentials are correct.
+- **Database Session Errors**: If you encounter `AttributeError: __enter__`, ensure you have pulled the latest code which fixes session handling patterns.
 
 ## Credits
 

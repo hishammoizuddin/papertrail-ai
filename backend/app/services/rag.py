@@ -1,7 +1,7 @@
 
 from app.services.embeddings import get_embedding
 from app.services.pinecone_store import query_similar_vectors
-from app.db import get_session
+from sqlmodel import Session
 from app.models import Chunk, Document
 import openai
 from app.config import OPENAI_API_KEY
@@ -9,13 +9,13 @@ from typing import List, Dict, Any, Optional
 
 openai.api_key = OPENAI_API_KEY
 
-def retrieve_chunks(query: str, top_k: int = 10, document_id: Optional[str] = None) -> List[Dict[str, Any]]:
+def retrieve_chunks(session: Session, query: str, top_k: int = 10, document_id: Optional[str] = None) -> List[Dict[str, Any]]:
 	embedding = get_embedding(query)
 	matches = query_similar_vectors(embedding, top_k=top_k, document_id=document_id)
 	chunk_ids = [m["id"] for m in matches]
-	with get_session() as session:
-		chunks = session.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
-		chunk_map = {c.id: c for c in chunks}
+	
+	chunks = session.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
+	chunk_map = {c.id: c for c in chunks}
 	results = []
 	for m in matches:
 		cid = m["id"]

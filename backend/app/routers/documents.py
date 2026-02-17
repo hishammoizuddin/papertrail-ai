@@ -1,14 +1,16 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, status, BackgroundTasks, Response
 from fastapi.responses import StreamingResponse
-from app.models import Document, Chunk, Deadline
-from app.db import get_session, init_db
+from app.models import Document, Chunk, Deadline, User
+from app.db import get_session, init_db, engine
+from sqlmodel import select, Session
 from app.schemas import DocumentBase, DocumentSummary
 from app.services import pdf, ocr, chunking, embeddings, pinecone_store, extraction, graph
+from app.auth import get_current_user
+from fastapi import Depends
 import os
 import shutil
 import uuid
 from datetime import datetime
-from sqlmodel import select
 from typing import List
 
 router = APIRouter()
@@ -22,7 +24,7 @@ def startup():
 	init_db()
 
 @router.post("/", response_model=DocumentBase)
-def upload_document(file: UploadFile = File(...)):
+def upload_document(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
 	print(f"DEBUG: upload_document called. Filename: {file.filename}, Content-Type: {file.content_type}")
 	try:
 		if file.content_type not in ["application/pdf", "image/png", "image/jpeg"]:
@@ -59,9 +61,11 @@ def upload_document(file: UploadFile = File(...)):
 			filename=file.filename,
 			path=file_path,
 			created_at=datetime.utcnow(),
-			status="uploaded"
+			status="uploaded",
+            user_id=current_user.id
 		)
-		with get_session() as session:
+		# Use a fresh session for this operation since we need it strictly for this
+		with Session(engine) as session:
 			session.add(doc)
 			session.commit()
 			session.refresh(doc)
@@ -77,23 +81,26 @@ def upload_document(file: UploadFile = File(...)):
 		raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
 @router.post("/{document_id}/process")
-def process_document(document_id: str, background_tasks: BackgroundTasks):
-	with get_session() as session:
-		doc = session.get(Document, document_id)
-		if not doc:
-			raise HTTPException(status_code=404, detail="Document not found.")
-		
-		# Set status to processing immediately
-		doc.status = "processing"
-		session.add(doc)
-		session.commit()
-		session.refresh(doc)
-		
-		# Offload heavy lifting to background
-		background_tasks.add_task(_process_document_bg, document_id)
-		
-		from app.schemas import DocumentBase
-		return DocumentBase.model_validate(doc.model_dump())
+def process_document(document_id: str, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+	doc = session.get(Document, document_id)
+	if not doc:
+		raise HTTPException(status_code=404, detail="Document not found.")
+	
+	# Set status to processing immediately
+	doc = session.exec(select(Document).where(Document.id == document_id, Document.user_id == current_user.id)).first()
+	if not doc:
+		raise HTTPException(status_code=404, detail="Document not found or access denied.")
+
+	doc.status = "processing"
+	session.add(doc)
+	session.commit()
+	session.refresh(doc)
+	
+	# Offload heavy lifting to background
+	background_tasks.add_task(_process_document_bg, document_id)
+	
+	from app.schemas import DocumentBase
+	return DocumentBase.model_validate(doc.model_dump())
 
 def _process_document_bg(document_id: str):
 	"""
@@ -105,16 +112,18 @@ def _process_document_bg(document_id: str):
 	- Extraction
 	- Deadlines & Graph
 	"""
-	with get_session() as session:
+	with Session(engine) as session:
 		doc = session.get(Document, document_id)
 		if not doc:
 			return
 
 		try:
-			# Remove old vectors/chunks
+			# Remove old vectors/chunks/deadlines/actions
 			pinecone_store.delete_vectors_by_document(document_id)
 			session.query(Chunk).filter(Chunk.document_id == document_id).delete()
 			session.query(Deadline).filter(Deadline.document_id == document_id).delete()
+			from app.models import ActionItem
+			session.query(ActionItem).filter(ActionItem.document_id == document_id).delete()
 			session.commit()
 
 			# Extract text
@@ -228,7 +237,12 @@ def _process_document_bg(document_id: str):
    
 			# Trigger graph rebuild to include new nodes/edges
 			try:
-				graph.rebuild_graph(session)
+				# Fetch user to pass to rebuild_graph
+				user = session.get(User, doc.user_id)
+				if user:
+					graph.rebuild_graph(session, user)
+				else:
+					print(f"Graph rebuild skipped: User {doc.user_id} not found")
 			except Exception as e:
 				print(f"Graph rebuild warning: {e}")
 
@@ -242,121 +256,117 @@ def _process_document_bg(document_id: str):
 			session.commit()
 
 @router.get("/", response_model=List[DocumentSummary])
-def list_documents():
-	with get_session() as session:
-		# Defer loading extracted_json for performance if possible, 
-		# but for now just filtering via schema is enough to save bandwidth.
-		docs = session.exec(select(Document)).all()
-		return docs
+def list_documents(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+	# Defer loading extracted_json for performance if possible, 
+	# but for now just filtering via schema is enough to save bandwidth.
+	docs = session.exec(select(Document).where(Document.user_id == current_user.id)).all()
+	return docs
 
 @router.get("/{document_id}", response_model=DocumentBase)
-def get_document(document_id: str):
-	with get_session() as session:
-		doc = session.get(Document, document_id)
-		if not doc:
-			raise HTTPException(status_code=404, detail="Document not found.")
-		return doc
+def get_document(document_id: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+	doc = session.get(Document, document_id)
+	if not doc or doc.user_id != current_user.id:
+		raise HTTPException(status_code=404, detail="Document not found.")
+	return doc
 
 @router.get("/{document_id}/pdf")
-def stream_pdf(document_id: str):
-	with get_session() as session:
-		doc = session.get(Document, document_id)
-		if not doc:
-			raise HTTPException(status_code=404, detail="Document not found.")
-		if not os.path.exists(doc.path):
-			raise HTTPException(status_code=404, detail="File not found.")
-		def iterfile():
-			with open(doc.path, mode="rb") as file_like:
-				yield from file_like
-		return StreamingResponse(iterfile(), media_type="application/pdf")
+def stream_pdf(document_id: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+	doc = session.get(Document, document_id)
+	if not doc or doc.user_id != current_user.id:
+		raise HTTPException(status_code=404, detail="Document not found.")
+	if not os.path.exists(doc.path):
+		raise HTTPException(status_code=404, detail="File not found.")
+	def iterfile():
+		with open(doc.path, mode="rb") as file_like:
+			yield from file_like
+	return StreamingResponse(iterfile(), media_type="application/pdf")
 
 @router.delete("/{document_id}", status_code=204)
-def delete_document(document_id: str):
-	with get_session() as session:
-		doc = session.get(Document, document_id)
-		if not doc:
-			raise HTTPException(status_code=404, detail="Document not found.")
-		
+def delete_document(document_id: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+	doc = session.get(Document, document_id)
+	if not doc or doc.user_id != current_user.id:
+		raise HTTPException(status_code=404, detail="Document not found.")
+	
+	try:
+		# 1. Delete Pinecone vectors
 		try:
-			# 1. Delete Pinecone vectors
-			try:
-				pinecone_store.delete_vectors_by_document(document_id)
-			except Exception as e:
-				print(f"Warning: Failed to delete vectors for {document_id}: {e}")
-
-			# 2. Delete SQL Chunk records
-			session.query(Chunk).filter(Chunk.document_id == document_id).delete()
-			
-			# 3. Delete SQL Deadline records
-			session.query(Deadline).filter(Deadline.document_id == document_id).delete()
-
-			# 4. Delete SQL ActionItem records (Import locally to avoid circular imports if needed, 
-			#    but we can also duplicate the model import or just use SQL)
-			from app.models import ActionItem, GraphNode, GraphEdge
-			session.query(ActionItem).filter(ActionItem.document_id == document_id).delete()
-
-			# 5. Delete GraphNode (document) and related edges
-			# First, identify all nodes connected to this document
-			connected_edges = session.exec(
-				select(GraphEdge).where(
-					(GraphEdge.source == document_id) | (GraphEdge.target == document_id)
-				)
-			).all()
-			
-			neighbor_ids = set()
-			for edge in connected_edges:
-				if edge.source == document_id:
-					neighbor_ids.add(edge.target)
-				else:
-					neighbor_ids.add(edge.source)
-			
-			# Delete edges connected to the document
-			for edge in connected_edges:
-				session.delete(edge)
-			
-			# Delete the document node itself
-			session.query(GraphNode).filter(GraphNode.id == document_id).delete()
-			
-			# Check neighbors: if they have no other edges, delete them (orphaned)
-			for nid in neighbor_ids:
-				# Check if there are ANY edges left for this node
-				remaining_edges_count = session.query(GraphEdge).filter(
-					(GraphEdge.source == nid) | (GraphEdge.target == nid)
-				).count()
-				
-				if remaining_edges_count == 0:
-					session.query(GraphNode).filter(GraphNode.id == nid).delete()
-
-			# 6. Delete file from filesystem
-			if os.path.exists(doc.path):
-				try:
-					os.remove(doc.path)
-					# Also try to remove the directory if it's a UUID dir containing just this file
-					parent_dir = os.path.dirname(doc.path)
-					if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
-						os.rmdir(parent_dir)
-					# If the parent dir is the uuid one (which it is based on upload logic), we should remove it
-					# Upload logic: UPLOAD_ROOT / doc_id / filename
-					# doc.path = .../doc_id/filename
-					# parent_dir = .../doc_id
-					# We should remove parent_dir regardless of whether it's empty if it was created for this doc
-					if os.path.basename(parent_dir) == doc.id:
-						shutil.rmtree(parent_dir, ignore_errors=True)
-				except Exception as e:
-					print(f"Warning: Failed to delete file/directory for {document_id}: {e}")
-
-			# 7. Delete Document record
-			session.delete(doc)
-			session.commit()
-			
-			# Rebuild graph to clean up any orphaned nodes if necessary, 
-			# though strict orphaned node cleanup might be too aggressive/expensive here.
-			# For now, we trust the graph service to rebuild if needed, or we just leave orphaned nodes ( issuers/tags)
-			# which might be reused. 
-			
-			return Response(status_code=204)
-			
+			pinecone_store.delete_vectors_by_document(document_id)
 		except Exception as e:
-			session.rollback()
-			print(f"Error deleting document {document_id}: {e}")
-			raise HTTPException(status_code=500, detail=f"Failed to delete document: {e}")
+			print(f"Warning: Failed to delete vectors for {document_id}: {e}")
+
+		# 2. Delete SQL Chunk records
+		session.query(Chunk).filter(Chunk.document_id == document_id).delete()
+		
+		# 3. Delete SQL Deadline records
+		session.query(Deadline).filter(Deadline.document_id == document_id).delete()
+
+		# 4. Delete SQL ActionItem records (Import locally to avoid circular imports if needed, 
+		#    but we can also duplicate the model import or just use SQL)
+		from app.models import ActionItem, GraphNode, GraphEdge
+		session.query(ActionItem).filter(ActionItem.document_id == document_id).delete()
+
+		# 5. Delete GraphNode (document) and related edges
+		# First, identify all nodes connected to this document
+		connected_edges = session.exec(
+			select(GraphEdge).where(
+				(GraphEdge.source == document_id) | (GraphEdge.target == document_id)
+			)
+		).all()
+		
+		neighbor_ids = set()
+		for edge in connected_edges:
+			if edge.source == document_id:
+				neighbor_ids.add(edge.target)
+			else:
+				neighbor_ids.add(edge.source)
+		
+		# Delete edges connected to the document
+		for edge in connected_edges:
+			session.delete(edge)
+		
+		# Delete the document node itself
+		session.query(GraphNode).filter(GraphNode.id == document_id).delete()
+		
+		# Check neighbors: if they have no other edges, delete them (orphaned)
+		for nid in neighbor_ids:
+			# Check if there are ANY edges left for this node
+			remaining_edges_count = session.query(GraphEdge).filter(
+				(GraphEdge.source == nid) | (GraphEdge.target == nid)
+			).count()
+			
+			if remaining_edges_count == 0:
+				session.query(GraphNode).filter(GraphNode.id == nid).delete()
+
+		# 6. Delete file from filesystem
+		if os.path.exists(doc.path):
+			try:
+				os.remove(doc.path)
+				# Also try to remove the directory if it's a UUID dir containing just this file
+				parent_dir = os.path.dirname(doc.path)
+				if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
+					os.rmdir(parent_dir)
+				# If the parent dir is the uuid one (which it is based on upload logic), we should remove it
+				# Upload logic: UPLOAD_ROOT / doc_id / filename
+				# doc.path = .../doc_id/filename
+				# parent_dir = .../doc_id
+				# We should remove parent_dir regardless of whether it's empty if it was created for this doc
+				if os.path.basename(parent_dir) == doc.id:
+					shutil.rmtree(parent_dir, ignore_errors=True)
+			except Exception as e:
+				print(f"Warning: Failed to delete file/directory for {document_id}: {e}")
+
+		# 7. Delete Document record
+		session.delete(doc)
+		session.commit()
+		
+		# Rebuild graph to clean up any orphaned nodes if necessary, 
+		# though strict orphaned node cleanup might be too aggressive/expensive here.
+		# For now, we trust the graph service to rebuild if needed, or we just leave orphaned nodes ( issuers/tags)
+		# which might be reused. 
+		
+		return Response(status_code=204)
+		
+	except Exception as e:
+		session.rollback()
+		print(f"Error deleting document {document_id}: {e}")
+		raise HTTPException(status_code=500, detail=f"Failed to delete document: {e}")

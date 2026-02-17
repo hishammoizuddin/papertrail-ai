@@ -1,10 +1,15 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
+
+import Logo from '../Logo';
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { user, logout } = useAuth() as any;
 
   const isActive = (path: string) => {
     return location.pathname.startsWith(path)
@@ -16,11 +21,27 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
       <nav className="fixed top-0 left-0 right-0 z-50 glass dark:glass-dark border-b border-white/20 dark:border-white/10">
         <div className="max-w-7xl mx-auto px-6 h-14 flex justify-between items-center">
-          <Link to="/" className="text-xl font-semibold tracking-tight">PaperTrail AI</Link>
+          <Link to="/" className="flex items-center gap-2">
+            <Logo size={24} />
+          </Link>
           <div className="flex items-center gap-6">
             <Link to="/chat" className={isActive('/chat')}>Chat</Link>
             <Link to="/inbox" className={isActive('/inbox')}>Dashboard</Link>
             <Link to="/graph" className={isActive('/graph')}>Mind Map</Link>
+            <div className="border-l border-gray-300 dark:border-gray-700 h-6 mx-2"></div>
+            {user && (
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Welcome, {user.email?.split('@')[0]}
+                </span>
+                <button
+                  onClick={logout}
+                  className="text-sm font-medium text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400"
