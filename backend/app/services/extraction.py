@@ -16,7 +16,7 @@ CLASSIFY_PROMPT = (
 )
 
 EXTRACT_PROMPT = (
-	"You are an expert document analyst and personal assistant. Your goal is to extract structured data to create a perfect Mind Map and a highly actionable Task List.\n"
+	"You are an expert document analyst and personal assistant. Your goal is to extract structured data to create a perfect Knowledge Map and a highly actionable Task List.\n"
 	"Given the document text, perform the following:\n"
 	"1. **Classify & Tag**: Identify the specific document type (e.g., 'Invoice', 'Lease Agreement', 'Medical Record'), a broad category (e.g., 'Finance', 'Legal', 'Health', 'Home'), and add relevant tags (e.g., 'Tax 2024', 'Vehicle', 'Urgent').\n"
 	"2. **Summarize**: Write a detailed, multi-paragraph summary.\n"

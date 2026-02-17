@@ -225,7 +225,7 @@ const GraphView: React.FC = () => {
     }, []);
 
     return (
-        <Section title="Mind Map">
+        <Section title="Knowledge Map">
             <div className="flex justify-between mb-4">
                 <div className="flex gap-2">
                     <Button

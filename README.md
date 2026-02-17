@@ -12,7 +12,7 @@ A local-first, production-quality document management and AI extraction app. Pap
   - Intelligent chunking and embedding.
   - Automatic classification of document types (Invoices, Contracts, etc.).
 - **Interactive Chat (RAG)**: Chat with your documents using Retrieval-Augmented Generation (RAG) with accurate citations.
-- **Mind Map**: Visualize connections and relationships between your documents (Entities, Issuers, Dates) with an interactive graph view. **Now supports multi-tenancy with isolated data for each user.**
+- **Knowledge Map**: Visualize connections and relationships between your documents (Entities, Issuers, Dates) with an interactive graph view. **Now supports multi-tenancy with isolated data for each user.**
 - **Smart Actions**: Automatically extracts actionable items (Deadlines, To-Dos) from your documents.
 - **Vector Search**: Semantic search capabilities powered by Pinecone.
 - **Modern UI**: Sleek glassmorphism design with Dark Mode support and smooth animations.
@@ -126,7 +126,7 @@ A local-first, production-quality document management and AI extraction app. Pap
 1. **Sign Up / Login**: Create a new account or log in to access your secure dashboard.
 2. **Upload**: Use the Dashboard to upload your PDF or Image files.
 3. **Process**: The system automatically extracts text, generates embeddings, and identifies entities.
-4. **Analyze**: Use the Mind Map to see document relationships.
+4. **Analyze**: Use the Knowledge Map to see document relationships.
 5. **Chat**: Ask questions about your documents in the Chat interface to get answers with citations.
 6. **Actions**: Review automatically generated action items and deadlines.
 
