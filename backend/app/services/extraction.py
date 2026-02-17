@@ -41,15 +41,15 @@ EXTRACT_SCHEMA = {
 
 class ExtractedFieldsModel(BaseModel):
 	doc_type: str
-	issuer: Optional[str]
-	people: list
-	addresses: list
-	amounts: list
-	dates: list
-	deadlines: list
-	detailed_summary: str
-	summary_bullets: list
-	recommended_actions: list
+	issuer: Optional[str] = None
+	people: Optional[list] = None
+	addresses: Optional[list] = None
+	amounts: Optional[list] = None
+	dates: Optional[list] = None
+	deadlines: Optional[list] = None
+	detailed_summary: Optional[str] = None
+	summary_bullets: Optional[list] = None
+	recommended_actions: Optional[list] = None
 
 def classify_document(text: str) -> Dict[str, Any]:
 	prompt = CLASSIFY_PROMPT.replace("{input}", text[:2000])
@@ -83,6 +83,13 @@ def extract_fields(text: str) -> Optional[Dict[str, Any]]:
 		if resp.choices[0].message.content:
 			data = json.loads(resp.choices[0].message.content)
 			# Validate strict schema
+			# Note: Pydantic v2 model_validate does not mutate in-place usually if dict is passed directly unless we instantiate model.
+			# But here we just want to ensure structure is roughly correct.
+			# We'll manually fix None -> [] for safety.
+			for k in ["people", "addresses", "amounts", "dates", "deadlines", "summary_bullets", "recommended_actions"]:
+				if k not in data or data[k] is None:
+					data[k] = []
+			
 			ExtractedFieldsModel.model_validate(data)
 			return data
 		return None

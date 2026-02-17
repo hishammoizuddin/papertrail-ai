@@ -41,12 +41,12 @@ const ActionCenter: React.FC = () => {
             const mailtoLink = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body_template)}`;
             window.open(mailtoLink, '_blank');
         } else if (action.type === 'calendar') {
-             const { title, date } = action.payload;
-             // Simple google calendar link
-             const gcalLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${date.replace(/-/g, '')}/${date.replace(/-/g, '')}`;
-             window.open(gcalLink, '_blank');
+            const { title, date } = action.payload;
+            // Simple google calendar link
+            const gcalLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${date.replace(/-/g, '')}/${date.replace(/-/g, '')}`;
+            window.open(gcalLink, '_blank');
         }
-        
+
         // Mark as completed
         try {
             await axios.post(`http://localhost:8000/api/actions/${action.id}/status`, { status: 'completed' });
@@ -61,7 +61,7 @@ const ActionCenter: React.FC = () => {
             await axios.post(`http://localhost:8000/api/actions/${id}/status`, { status: 'dismissed' });
             fetchActions();
         } catch (e) {
-             console.error("Failed to update status", e);
+            console.error("Failed to update status", e);
         }
     };
 
@@ -79,34 +79,41 @@ const ActionCenter: React.FC = () => {
                 <h3 className="text-lg font-semibold text-[#1D1D1F]">Suggested Actions</h3>
                 <Badge color="primary">{actions.length} Pending</Badge>
             </div>
-            
+
             <div className="space-y-3">
-                {actions.map(action => (
-                    <div key={action.id} className="group flex items-start justify-between gap-4 p-4 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200">
-                        <div className="flex gap-3">
-                            <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center text-lg
-                                ${action.type === 'email' ? 'bg-blue-100 text-blue-600' : 
-                                  action.type === 'calendar' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                                {action.type === 'email' ? '✉️' : action.type === 'calendar' ? '📅' : '✅'}
-                            </div>
-                            <div>
-                                <div className="font-medium text-gray-900">{action.description}</div>
-                                <div className="text-xs text-gray-500 mt-0.5">
-                                    {new Date(action.created_at).toLocaleDateString()} • {action.type.toUpperCase()}
+                {actions.map(action => {
+                    const isHighSeverity = action.payload?.severity === 'high';
+                    const isExpired = action.description.startsWith('EXPIRED');
+
+                    return (
+                        <div key={action.id} className={`group flex items-start justify-between gap-4 p-4 rounded-xl border shadow-sm hover:shadow-md transition-all duration-200
+                        ${isHighSeverity ? 'bg-red-50 border-red-100' : 'bg-white border-gray-100'}`}>
+                            <div className="flex gap-3">
+                                <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center text-lg
+                                ${isHighSeverity ? 'bg-red-100 text-red-600' :
+                                        action.type === 'email' ? 'bg-blue-100 text-blue-600' :
+                                            action.type === 'calendar' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                                    {isExpired ? '⚠️' : action.type === 'email' ? '✉️' : action.type === 'calendar' ? '📅' : '✅'}
+                                </div>
+                                <div>
+                                    <div className={`font-medium ${isHighSeverity ? 'text-red-900' : 'text-gray-900'}`}>{action.description}</div>
+                                    <div className={`text-xs mt-0.5 ${isHighSeverity ? 'text-red-700' : 'text-gray-500'}`}>
+                                        {new Date(action.created_at).toLocaleDateString()} • {action.type.toUpperCase()}
+                                    </div>
                                 </div>
                             </div>
+
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => handleDismiss(action.id)} className={`p-2 rounded-full transition-colors ${isHighSeverity ? 'text-red-400 hover:text-red-600 hover:bg-red-100' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`} title="Dismiss">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                                <Button onClick={() => handleExecute(action)} className={`px-4 py-1.5 text-xs h-8 ${isHighSeverity ? '!bg-red-600 hover:!bg-red-700' : ''}`}>
+                                    {action.type === 'email' ? 'Draft' : action.type === 'calendar' ? 'Add' : 'Do it'}
+                                </Button>
+                            </div>
                         </div>
-                        
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleDismiss(action.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Dismiss">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                            <Button onClick={() => handleExecute(action)} className="px-4 py-1.5 text-xs h-8">
-                                {action.type === 'email' ? 'Draft' : action.type === 'calendar' ? 'Add' : 'Do it'}
-                            </Button>
-                        </div>
-                    </div>
-                ))}
+                    )
+                })}
             </div>
         </Card>
     );

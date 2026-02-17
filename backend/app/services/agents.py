@@ -35,7 +35,47 @@ def generate_actions_for_document(session: Session, doc: Document):
             )
              session.add(action)
 
-        # 3. Issuer specific actions (Example logic)
+        # 3. Expiry / Renewal Dates -> Calendar / Todo
+        for date_item in data.get("dates", []):
+            label = date_item.get("label", "").lower()
+            date_val = date_item.get("date")
+            if not date_val:
+                continue
+
+            # Keywords indicating expiration or renewal
+            if any(kw in label for kw in ["expir", "renew", "valid until", "due", "end"]):
+                 # Check if we already have a deadline/action for this specific date/label to avoid dupes?
+                 # ideally implemented with a unique constraint or check, but for now simple insert
+                 
+                 # Calculate severity (simple check)
+                 try:
+                    d = datetime.strptime(date_val, "%Y-%m-%d").date()
+                    days_left = (d - datetime.utcnow().date()).days
+                    severity = "high" if days_left < 30 else "medium" if days_left < 90 else "low"
+                    
+                    if days_left < 0:
+                        desc = f"EXPIRED: {date_item.get('label')} on {date_val}"
+                        severity = "high"
+                    else:
+                        desc = f"Renew/Action: {date_item.get('label')} by {date_val}"
+                 except:
+                    severity = "medium"
+                    desc = f"Action: {date_item.get('label')} by {date_val}"
+
+                 action = ActionItem(
+                    document_id=doc.id,
+                    type="calendar",
+                    description=desc,
+                    payload={
+                        "title": f"Renew {doc.doc_type or 'Document'}",
+                        "date": date_val,
+                        "severity": severity,
+                        "label": date_item.get("label")
+                    }
+                )
+                 session.add(action)
+
+        # 4. Issuer specific actions (Example logic)
         if data.get("issuer") and "Invoice" in (doc.doc_type or ""):
              action = ActionItem(
                 document_id=doc.id,
@@ -61,7 +101,11 @@ def execute_action(session: Session, action_id: int):
     # For this demo, we mark it as completed or return a payload to frontend
     action = session.get(ActionItem, action_id)
     if action:
-        # Simulate execution logic here if needed
+        # Simulate execution
+        # For 'calendar', we might actually call Google Calendar API here
+        # For 'email', we might call Gmail API
+        
+        # For now, we just return the action so frontend can open the link/modal
         return action
     return None
 

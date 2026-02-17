@@ -44,6 +44,16 @@ const InboxPage: React.FC = () => {
 		fetchDocs();
 	}, []);
 
+	// Poll for updates if any document is processing
+	useEffect(() => {
+		if (documents.some(d => d.status === 'processing')) {
+			const interval = setInterval(() => {
+				fetchDocs();
+			}, 2000);
+			return () => clearInterval(interval);
+		}
+	}, [documents]);
+
 	const handleProcess = async (docId: string, isAuto = false) => {
 		setError(null);
 

@@ -6,13 +6,14 @@ from app.models import Document
 from typing import List
 from pydantic import BaseModel
 
+from app.schemas import ActionItemBase
+
 router = APIRouter()
 
 class ActionStatusUpdate(BaseModel):
     status: str
 
-@router.get("/", response_model=List[dict]) 
-# Ideally use a Pydantic model for response, but dict is quick for prototype
+@router.get("/", response_model=List[ActionItemBase]) 
 def list_actions(session: Session = Depends(get_session)):
     actions = get_pending_actions(session)
     return actions
