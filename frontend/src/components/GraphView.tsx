@@ -281,10 +281,8 @@ const GraphView: React.FC = () => {
     useEffect(() => {
         if (graphRef.current) {
             // Apply custom forces
-            graphRef.current.d3Force('charge').strength(-200);
-            graphRef.current.d3Force('link').distance(100);
-            // Add collision to prevent overlap
-            // graphRef.current.d3Force('collide', d3.forceCollide(20)); // requires d3 import, skipping for now as charge should handle it
+            graphRef.current.d3Force('charge').strength(-120);
+            graphRef.current.d3Force('link').distance(60);
         }
     }, [data, auditMode]); // Re-apply when data changes or mode changes
 
@@ -413,7 +411,8 @@ const GraphView: React.FC = () => {
 
                                     if (node.x && node.y) {
                                         ctx.beginPath();
-                                        const radius = 4; // Slightly larger for better visibility
+                                        // Use node.val for size, default to 4 if missing. Scale slightly (0.8) to avoid being too large.
+                                        const radius = (node.val || 4) * 0.8;
                                         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
                                         ctx.fillStyle = node.color;
                                         ctx.fill();
@@ -422,7 +421,7 @@ const GraphView: React.FC = () => {
                                         ctx.lineWidth = 1.5 / globalScale;
                                         ctx.stroke();
 
-                                        const textYOffset = 8;
+                                        const textYOffset = radius + 6;
                                         const isDarkMode = theme === 'dark';
 
                                         // Label Background
