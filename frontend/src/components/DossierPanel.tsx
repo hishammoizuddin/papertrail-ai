@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, DollarSign, FileText, Activity, ExternalLink } from 'lucide-react';
+import { X, Calendar, DollarSign, FileText, Activity, ExternalLink, Users, TrendingUp, PieChart } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -36,6 +36,9 @@ export interface DossierData {
     stats: DossierStats;
     related_documents: DocumentSummary[];
     related_actions: ActionItem[];
+    collaborators: { id: string; name: string; role: string | null; count: number }[];
+    trends: { date: string; count: number }[];
+    distribution: { type: string; count: number }[];
 }
 
 interface DossierPanelProps {
@@ -166,6 +169,100 @@ const DossierPanel: React.FC<DossierPanelProps> = ({ isOpen, onClose, data, isLo
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Insights Grid */}
+                                <div className="space-y-6">
+
+                                    {/* Activity Trends */}
+                                    {data.trends.length > 0 && (
+                                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 p-4">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <TrendingUp className="w-4 h-4 text-blue-500" />
+                                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase">Activity Trend</h3>
+                                            </div>
+                                            <div className="h-24 flex items-end gap-1">
+                                                {(() => {
+                                                    const max = Math.max(...data.trends.map(t => t.count), 1);
+                                                    return data.trends.map((t, i) => (
+                                                        <div key={i} className="flex-1 flex flex-col items-center group relative">
+                                                            <div
+                                                                className="w-full bg-blue-100 dark:bg-blue-900/40 rounded-t-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition-all cursor-help relative"
+                                                                style={{ height: `${(t.count / max) * 100}%`, minHeight: '4px' }}
+                                                            >
+                                                                {/* Tooltip */}
+                                                                <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10">
+                                                                    {t.date}: {t.count} docs
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                            </div>
+                                            <div className="flex justify-between mt-2 text-[10px] text-gray-400">
+                                                <span>{data.trends[0]?.date}</span>
+                                                <span>{data.trends[data.trends.length - 1]?.date}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Document Distribution */}
+                                    {data.distribution.length > 0 && (
+                                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 p-4">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <PieChart className="w-4 h-4 text-purple-500" />
+                                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase">Portfolio Mix</h3>
+                                            </div>
+                                            <div className="flex h-3 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                                {(() => {
+                                                    const total = data.distribution.reduce((acc, curr) => acc + curr.count, 0);
+                                                    const colors = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500'];
+                                                    return data.distribution.map((d, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className={`${colors[i % colors.length]} h-full`}
+                                                            style={{ width: `${(d.count / total) * 100}%` }}
+                                                        />
+                                                    ));
+                                                })()}
+                                            </div>
+                                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                                {data.distribution.slice(0, 4).map((d, i) => {
+                                                    const colors = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500'];
+                                                    return (
+                                                        <div key={i} className="flex items-center gap-2">
+                                                            <div className={`w-2 h-2 rounded-full ${colors[i % colors.length]}`}></div>
+                                                            <span className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1">{d.type}</span>
+                                                            <span className="text-xs font-mono text-gray-400">{d.count}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Top Collaborators */}
+                                    {data.collaborators.length > 0 && (
+                                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 p-4">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <Users className="w-4 h-4 text-green-500" />
+                                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase">Top Connections</h3>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {data.collaborators.map((collab) => (
+                                                    <div key={collab.id} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-900 rounded-full border border-gray-100 dark:border-gray-700">
+                                                        <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 flex items-center justify-center text-[10px] font-bold">
+                                                            {collab.name.charAt(0)}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-medium text-gray-900 dark:text-gray-200">{collab.name}</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-gray-400 font-mono ml-1">{collab.count}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Related Documents */}

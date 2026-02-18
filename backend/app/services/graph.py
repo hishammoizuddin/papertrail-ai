@@ -1,7 +1,7 @@
 from sqlmodel import Session, select, col, delete, func, or_
 from app.models import Document, GraphNode, GraphEdge, User, ActionItem, Deadline
 from app.db import get_session
-from app.schemas import DossierResponse, DossierStats, DocumentSummary, ActionItemBase
+from app.schemas import DossierResponse, DossierStats, DocumentSummary, ActionItemBase, TrendPoint, TypeDistribution, Collaborator
 import json
 import uuid
 import re
@@ -408,12 +408,95 @@ def get_entity_dossier(session: Session, user: User, node_id: str) -> DossierRes
         currency="USD" # Default for now
     )
 
+    # 5. Calculate Activity Trends (Last 12 Months)
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+    
+    activity_counts = defaultdict(int)
+    today = datetime.utcnow().date()
+    
+    # Initialize last 12 months with 0
+    for i in range(11, -1, -1):
+        month_str = (today - timedelta(days=i*30)).strftime("%Y-%m")
+        activity_counts[month_str] = 0
+        
+    for doc in docs:
+        if doc.created_at:
+            month_key = doc.created_at.strftime("%Y-%m")
+            if month_key in activity_counts:
+                activity_counts[month_key] += 1
+            # Handle out of range if needed, or just extend range dynamically
+            else:
+                 # Check if within last 12 months roughly
+                 if (today - doc.created_at.date()).days < 365:
+                     activity_counts[month_key] += 1
+
+    trends = [TrendPoint(date=k, count=v) for k, v in sorted(activity_counts.items())] # Use model ref
+
+    # 6. Calculate Document Type Distribution
+    type_counts = defaultdict(int)
+    for doc in docs:
+        t = doc.doc_type or "Uncategorized"
+        type_counts[t] += 1
+    
+    distribution = [TypeDistribution(type=k, count=v) for k, v in sorted(type_counts.items(), key=lambda x: x[1], reverse=True)]
+
+    # 7. Identify Top Collaborators (Co-occurring entities)
+    # Entities that appear in the same documents
+    collaborators_map = defaultdict(int) # id -> count
+    collaborator_details = {} # id -> {name, role}
+    
+    if doc_ids_list:
+        # Find all edges connected to these documents, excluding the current node
+        stm = select(GraphEdge).where(
+            (col(GraphEdge.source).in_(doc_ids_list)) | 
+            (col(GraphEdge.target).in_(doc_ids_list))
+        )
+        linked_edges = session.exec(stm).all()
+        
+        for edge in linked_edges:
+            other_id = None
+            if edge.source in doc_ids_list:
+                other_id = edge.target
+            elif edge.target in doc_ids_list:
+                other_id = edge.source
+            
+            if other_id and other_id != node_id and other_id not in doc_ids_list:
+                collaborators_map[other_id] += 1
+        
+        # Get details for top 10 potential collaborators
+        top_ids = sorted(collaborators_map, key=collaborators_map.get, reverse=True)[:10]
+        if top_ids:
+            collab_nodes = session.exec(select(GraphNode).where(col(GraphNode.id).in_(top_ids))).all()
+            for n in collab_nodes:
+                # Filter out documents if they accidentally got linked as "collaborators" (should cover with not in doc_ids_list but double check type)
+                if n.type != 'document':
+                    collaborator_details[n.id] = {"name": n.label, "role": n.properties.get("role") or n.type}
+
+    collaborators = []
+    for cid, count in sorted(collaborators_map.items(), key=lambda x: x[1], reverse=True):
+        if cid in collaborator_details:
+            details = collaborator_details[cid]
+            collaborators.append(Collaborator(
+                id=cid,
+                name=details["name"],
+                role=details["role"],
+                count=count
+            ))
+            if len(collaborators) >= 5: break
+
+
+
+
     return DossierResponse(
         node_id=node.id,
         label=node.label,
         type=node.type,
-        summary=f"Entity associated with {len(docs)} documents.", # Placeholder for AI summary
+        summary=f"Entity associated with {len(docs)} documents.", 
         stats=stats,
         related_documents=doc_summaries,
-        related_actions=action_summaries
+        related_actions=action_summaries,
+        collaborators=collaborators,
+        trends=trends,
+        distribution=distribution
     )

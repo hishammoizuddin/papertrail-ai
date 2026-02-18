@@ -85,6 +85,20 @@ class DossierStats(BaseModel):
     total_value: Optional[float] = None
     currency: str = "USD"
 
+class Collaborator(BaseModel):
+    id: str
+    name: str
+    role: Optional[str] = None
+    count: int
+
+class TrendPoint(BaseModel):
+    date: str
+    count: int
+
+class TypeDistribution(BaseModel):
+    type: str
+    count: int
+
 class DossierResponse(BaseModel):
     node_id: str
     label: str
@@ -93,6 +107,9 @@ class DossierResponse(BaseModel):
     stats: DossierStats
     related_documents: List[DocumentSummary]
     related_actions: List[ActionItemBase]
+    collaborators: List[Collaborator] = []
+    trends: List[TrendPoint] = []
+    distribution: List[TypeDistribution] = []
 
 class ArenaPersona(BaseModel):
     name: str
