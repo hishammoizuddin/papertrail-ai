@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -11,11 +12,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { user, logout } = useAuth() as any;
 
-  const isActive = (path: string) => {
-    return location.pathname.startsWith(path)
-      ? 'text-black dark:text-white font-medium'
-      : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors';
-  };
+
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
@@ -24,11 +21,34 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <Link to="/" className="flex items-center gap-2">
             <Logo size={24} />
           </Link>
-          <div className="flex items-center gap-6">
-            <Link to="/chat" className={isActive('/chat')}>Chat</Link>
-            <Link to="/inbox" className={isActive('/inbox')}>Dashboard</Link>
-            <Link to="/graph" className={isActive('/graph')}>Knowledge Map</Link>
-            <Link to="/arena" className={isActive('/arena')}>Arena</Link>
+          <div className="flex items-center gap-2">
+            {[
+              { path: '/chat', label: 'Chat' },
+              { path: '/inbox', label: 'Dashboard' },
+              { path: '/graph', label: 'Knowledge Map' },
+              { path: '/arena', label: 'Arena' },
+            ].map((tab) => {
+              const isActive = location.pathname.startsWith(tab.path);
+              return (
+                <Link
+                  key={tab.path}
+                  to={tab.path}
+                  className={`relative px-4 py-2 rounded-full text-sm font-medium transition-colors ${isActive
+                    ? 'text-black dark:text-white'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'
+                    }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="nav-pill"
+                      className="absolute inset-0 bg-gray-200 dark:bg-gray-800 rounded-full -z-10"
+                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                  {tab.label}
+                </Link>
+              );
+            })}
             <div className="border-l border-gray-300 dark:border-gray-700 h-6 mx-2"></div>
             {user && (
               <div className="flex items-center gap-4">
