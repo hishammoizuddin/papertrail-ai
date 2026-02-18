@@ -35,6 +35,22 @@ def update_status(action_id: int, update: ActionStatusUpdate, current_user: User
     session.refresh(action)
     return {"status": "success", "action_status": action.status}
 
+@router.post("/dismiss-all")
+def dismiss_all_actions(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    """
+    Dismiss all pending actions for the current user.
+    """
+    statement = select(ActionItem).where(ActionItem.user_id == current_user.id, ActionItem.status == 'pending')
+    actions = session.exec(statement).all()
+    
+    for action in actions:
+        action.status = 'dismissed'
+        session.add(action)
+    
+    session.commit()
+    
+    return {"status": "success", "count": len(actions)}
+
 @router.post("/generate/{document_id}")
 def trigger_generation(document_id: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     doc = session.get(Document, document_id)

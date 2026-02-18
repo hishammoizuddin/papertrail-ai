@@ -68,6 +68,15 @@ const ActionCenter: React.FC = () => {
 
 
 
+    const handleClearAll = async () => {
+        try {
+            await axios.post('http://localhost:8000/api/actions/dismiss-all');
+            fetchActions();
+        } catch (e) {
+            console.error("Failed to dismiss all actions", e);
+        }
+    };
+
     return (
         <section className="flex flex-col gap-4">
             {/* Header mostly for mobile or semantics, visually cleaner to just start with search */}
@@ -77,8 +86,18 @@ const ActionCenter: React.FC = () => {
 
             <div className="relative">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Suggested Actions</h3>
-                    {actions.length > 0 && <Badge color="primary">{actions.length}</Badge>}
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Suggested Actions</h3>
+                        {actions.length > 0 && <Badge color="primary">{actions.length}</Badge>}
+                    </div>
+                    {actions.length > 0 && (
+                        <button
+                            onClick={handleClearAll}
+                            className="text-xs font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded transition-colors"
+                        >
+                            Clear All
+                        </button>
+                    )}
                 </div>
 
                 {loading ? (
