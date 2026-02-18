@@ -9,7 +9,7 @@ interface Props {
 
 const SectionBlock: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
 	<div className="mb-4">
-		<div className="text-sm font-semibold text-gray-600 mb-1">{title}</div>
+		<div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">{title}</div>
 		<div>{children}</div>
 	</div>
 );
@@ -18,7 +18,7 @@ const ExtractedFieldsPanel: React.FC<Props> = ({ data }) => {
 	if (!data) return <div className="text-gray-400 italic">No extracted data.</div>;
 
 	return (
-		<div className="space-y-2">
+		<div className="space-y-2 text-gray-900 dark:text-gray-200">
 			<SectionBlock title="Document Type">
 				<Badge color="primary">{data.doc_type || '-'}</Badge>
 			</SectionBlock>
