@@ -9,6 +9,7 @@ import DocumentDetailPage from './pages/DocumentDetailPage';
 import InboxPage from './pages/InboxPage';
 import TimelinePage from './pages/TimelinePage';
 import GraphView from './components/GraphView';
+import ArenaPage from './pages/ArenaPage';
 
 import { AuthProvider } from './context/AuthContext';
 import Login from './pages/Login';
@@ -56,6 +57,7 @@ const App = () => {
                       <Route path="/chat" element={<ChatPage />} />
                       <Route path="/inbox" element={<InboxPage />} />
                       <Route path="/timeline" element={<TimelinePage />} />
+                      <Route path="/arena" element={<ArenaPage />} />
                       <Route path="/graph" element={<GraphView />} />
                       <Route path="/documents/:id" element={<DocumentDetailPage />} />
                       <Route path="*" element={

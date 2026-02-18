@@ -28,6 +28,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <Link to="/chat" className={isActive('/chat')}>Chat</Link>
             <Link to="/inbox" className={isActive('/inbox')}>Dashboard</Link>
             <Link to="/graph" className={isActive('/graph')}>Knowledge Map</Link>
+            <Link to="/arena" className={isActive('/arena')}>The Arena</Link>
             <div className="border-l border-gray-300 dark:border-gray-700 h-6 mx-2"></div>
             {user && (
               <div className="flex items-center gap-4">

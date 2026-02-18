@@ -93,3 +93,22 @@ class DossierResponse(BaseModel):
     stats: DossierStats
     related_documents: List[DocumentSummary]
     related_actions: List[ActionItemBase]
+
+class ArenaPersona(BaseModel):
+    name: str
+    role: str
+
+class ArenaStartRequest(BaseModel):
+    topic: str
+    document_ids: List[str]
+    persona_a: ArenaPersona
+    persona_b: ArenaPersona
+
+class ArenaTurnRequest(BaseModel):
+    history: List[Dict[str, str]]
+    current_speaker: ArenaPersona
+    context: str
+
+class ArenaResponse(BaseModel):
+    speaker: str
+    message: str
