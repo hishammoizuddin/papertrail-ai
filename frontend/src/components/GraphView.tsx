@@ -481,6 +481,7 @@ const GraphView: React.FC = () => {
                                 <Button
                                     onClick={() => fetchDossier(selectedNode.id)}
                                     className="w-full flex items-center justify-center gap-2"
+                                    title="View full details and history for this entity"
                                 >
                                     <BookOpen className="w-4 h-4" />
                                     View Dossier

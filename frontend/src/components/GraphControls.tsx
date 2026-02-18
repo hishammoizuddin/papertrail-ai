@@ -128,6 +128,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
                         variant={isAuditMode ? 'primary' : 'secondary'}
                         onClick={onToggleAudit}
                         className="flex items-center gap-2"
+                        title="Trace the flow of connections from a selected node"
                     >
                         <Route className="w-4 h-4" />
                         {isAuditMode ? 'Exit Trace' : 'Trace Trail'}
@@ -138,17 +139,18 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
                         onClick={onAnalyze}
                         disabled={isAnalyzing}
                         className="flex items-center gap-2"
+                        title="Detect potential conflicts or inconsistent data in the graph"
                     >
                         <AlertTriangle className="w-4 h-4" />
                         {isAnalyzing ? 'Analyzing...' : 'Conflicts'}
                         {conflictCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{conflictCount}</span>}
                     </Button>
 
-                    <Button onClick={onRebuild} disabled={isRebuilding} variant="secondary" title="Rebuild Graph">
+                    <Button onClick={onRebuild} disabled={isRebuilding} variant="secondary" title="Rebuild the entire knowledge graph from documents">
                         <RefreshCw className={`w-4 h-4 ${isRebuilding ? 'animate-spin' : ''}`} />
                     </Button>
 
-                    <Button onClick={onOpenHelp} variant="secondary" title="Help">
+                    <Button onClick={onOpenHelp} variant="secondary" title="View help and keyboard shortcuts">
                         <HelpCircle className="w-4 h-4" />
                     </Button>
                 </div>
