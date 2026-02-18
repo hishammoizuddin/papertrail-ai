@@ -27,93 +27,115 @@ const ArenaBattle: React.FC<ArenaBattleProps> = ({
     autoPlay,
     onToggleAutoPlay
 }) => {
-    const scrollRef = useRef<HTMLDivElement>(null);
+    const scrollRefA = useRef<HTMLDivElement>(null);
+    const scrollRefB = useRef<HTMLDivElement>(null);
 
+    // Auto-scroll both columns
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        if (scrollRefA.current) {
+            scrollRefA.current.scrollTop = scrollRefA.current.scrollHeight;
+        }
+        if (scrollRefB.current) {
+            scrollRefB.current.scrollTop = scrollRefB.current.scrollHeight;
         }
     }, [messages]);
 
+    const messagesA = messages.filter(m => m.isPersonaA);
+    const messagesB = messages.filter(m => !m.isPersonaA);
+
+    // Determine whose turn it is for the loading indicator
+    const lastMsg = messages[messages.length - 1];
+    const isNextA = lastMsg ? !lastMsg.isPersonaA : true; // Default to A if no messages (start)
+
     return (
-        <div className="max-w-5xl mx-auto flex flex-col h-[80vh]">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-6 px-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">
+        <div className="max-w-6xl mx-auto flex flex-col h-[85vh]">
+            {/* Split Header */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+                {/* Persona A Header */}
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600 text-xl">
                         {personaA.name[0]}
                     </div>
                     <div>
-                        <h3 className="font-bold text-gray-900 dark:text-white">{personaA.name}</h3>
-                        <p className="text-xs text-gray-500">{personaA.role}</p>
+                        <h3 className="font-bold text-lg text-gray-900 dark:text-white">{personaA.name}</h3>
+                        <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">{personaA.role}</p>
                     </div>
                 </div>
 
-                <div className="px-4 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-xs font-bold text-gray-500 tracking-wider">
-                    VS
-                </div>
-
-                <div className="flex items-center gap-3 text-right">
+                {/* Persona B Header */}
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4 justify-end text-right">
                     <div>
-                        <h3 className="font-bold text-gray-900 dark:text-white">{personaB.name}</h3>
-                        <p className="text-xs text-gray-500">{personaB.role}</p>
+                        <h3 className="font-bold text-lg text-gray-900 dark:text-white">{personaB.name}</h3>
+                        <p className="text-xs font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">{personaB.role}</p>
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center font-bold text-red-600">
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center font-bold text-red-600 text-xl">
                         {personaB.name[0]}
                     </div>
                 </div>
             </div>
 
-            {/* Chat Area */}
-            <Card className="flex-1 overflow-hidden flex flex-col relative bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-                <div className="flex-1 overflow-y-auto p-6 space-y-6" ref={scrollRef}>
-                    {messages.map((msg, user_idx) => (
-                        <div key={user_idx} className={`flex ${msg.isPersonaA ? 'justify-start' : 'justify-end'}`}>
-                            <div className={`
-                                max-w-[80%] p-5 rounded-2xl shadow-sm border
-                                ${msg.isPersonaA
-                                    ? 'bg-white border-blue-100 rounded-tl-none text-gray-800 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200'
-                                    : 'bg-red-50 border-red-100 rounded-tr-none text-gray-800 dark:bg-gray-900 dark:border-red-900/30 dark:text-gray-200'
-                                }
-                            `}>
-                                <div className={`text-xs font-bold mb-1 ${msg.isPersonaA ? 'text-blue-500' : 'text-red-500'}`}>
-                                    {msg.speaker}
-                                </div>
-                                <div className="leading-relaxed whitespace-pre-wrap">
+            {/* Split Battle Ground */}
+            <div className="flex-1 min-h-0 grid grid-cols-2 gap-4">
+                {/* Column A */}
+                <Card className="flex flex-col overflow-hidden bg-gray-50/50 dark:bg-gray-900/50 border-blue-100 dark:border-blue-900/20">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRefA}>
+                        {messagesA.map((msg, idx) => (
+                            <div key={idx} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-blue-50 dark:border-gray-700">
+                                <div className="text-sm leading-relaxed whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                                     {msg.content}
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                    {isTurnLoading && (
-                        <div className="flex justify-center py-4">
-                            <div className="animate-pulse text-sm text-gray-400 font-medium">
-                                Thinking...
+                        ))}
+                        {isTurnLoading && isNextA && (
+                            <div className="animate-pulse flex gap-2 items-center text-blue-500 font-medium p-2">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                </Card>
 
-                {/* Controls */}
-                <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm flex justify-center gap-4">
-                    <button
-                        onClick={onNextTurn}
-                        disabled={isTurnLoading || autoPlay}
-                        className="px-6 py-2 rounded-full bg-white border border-gray-200 shadow-sm hover:shadow hover:bg-gray-50 transition-all font-medium text-gray-700 disabled:opacity-50"
-                    >
-                        Next Turn
-                    </button>
-                    <button
-                        onClick={onToggleAutoPlay}
-                        className={`px-6 py-2 rounded-full font-bold transition-all shadow-md ${autoPlay
-                                ? 'bg-red-500 text-white hover:bg-red-600'
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            }`}
-                    >
-                        {autoPlay ? 'Pause' : 'Auto-Play'}
-                    </button>
-                </div>
-            </Card>
+                {/* Column B */}
+                <Card className="flex flex-col overflow-hidden bg-gray-50/50 dark:bg-gray-900/50 border-red-100 dark:border-red-900/20">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRefB}>
+                        {messagesB.map((msg, idx) => (
+                            <div key={idx} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-red-50 dark:border-gray-700">
+                                <div className="text-sm leading-relaxed whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                                    {msg.content}
+                                </div>
+                            </div>
+                        ))}
+                        {isTurnLoading && !isNextA && (
+                            <div className="animate-pulse flex gap-2 items-center justify-end text-red-500 font-medium p-2">
+                                <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                            </div>
+                        )}
+                    </div>
+                </Card>
+            </div>
+
+            {/* Controls */}
+            <div className="mt-4 flex justify-center gap-4">
+                <button
+                    onClick={onNextTurn}
+                    disabled={isTurnLoading || autoPlay}
+                    className="px-8 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all font-bold text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:hover:translate-y-0 disabled:shadow-none"
+                >
+                    {isTurnLoading ? 'Analyzing...' : 'Next Argument'}
+                </button>
+                <button
+                    onClick={onToggleAutoPlay}
+                    className={`px-8 py-3 rounded-xl font-bold transition-all shadow-md hover:-translate-y-0.5 ${autoPlay
+                        ? 'bg-gray-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-gray-200'
+                        : 'bg-[#0071E3] text-white hover:bg-[#0077ED]'
+                        }`}
+                >
+                    {autoPlay ? 'Pause Debate' : 'Auto-Play Debate'}
+                </button>
+            </div>
         </div>
     );
 };
