@@ -176,10 +176,18 @@ def rebuild_graph(session: Session, user: User):
                         # Check people list first, but verify with heuristic
                         for p in data.get("people", []):
                             if p["name"].lower() == name_lower:
-                                return "person" if is_likely_person(name) else "role" # Reclassify if bad name
+                                return "person" if is_likely_person(name) else "role" 
                         
-                        if any(o["name"].lower() == name_lower for o in data.get("organizations", [])): return "organization"
-                        if any(r["name"].lower() == name_lower for r in data.get("roles", [])): return "role"
+                        for o in data.get("organizations", []):
+                            if o["name"].lower() == name_lower: return "organization"
+                        
+                        for r in data.get("roles", []):
+                            if r["name"].lower() == name_lower: return "role"
+                            
+                        # Check custom entities
+                        for c in data.get("custom_entities", []):
+                            if c["name"].lower() == name_lower: return c.get("type", "entity").lower()
+                            
                         if name_lower == doc.filename.lower(): return "document"
                         
                         # Fallback heuristics
@@ -251,6 +259,13 @@ def rebuild_graph(session: Session, user: User):
                 loc_id = get_or_create_node("location", loc["name"], {"type": loc.get("type")})
                 if loc_id:
                     all_edges.append(GraphEdge(source=doc.id, target=loc_id, relation="LOCATED_AT"))
+            
+            # Custom Entity Nodes
+            for ent in data.get("custom_entities", []):
+                ent_type = ent.get("type", "entity").lower()
+                ent_id = get_or_create_node(ent_type, ent["name"], {"desc": ent.get("description")})
+                if ent_id:
+                    all_edges.append(GraphEdge(source=doc.id, target=ent_id, relation="MENTIONS"))
                 
         except Exception as e:
             print(f"Error parsing graph data for doc {doc.id}: {e}")

@@ -68,60 +68,52 @@ const GraphView: React.FC = () => {
     const [filteredData, setFilteredData] = useState<GraphData>({ nodes: [], links: [] });
     const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
 
+    // Dynamic Color Generation
+    const stringToColor = (str: string) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        // Use HSL for better distinctness and aesthetics
+        const hue = Math.abs(hash % 360);
+        return `hsl(${hue}, 70%, 50%)`;
+    };
+
+    const [availableTypes, setAvailableTypes] = useState<string[]>([]);
+
     const fetchGraph = async () => {
         setLoading(true);
         try {
             const res = await axios.get('/api/graph/data');
             const graphData = res.data;
 
+            // Extract unique types for filters and legend
+            const types = new Set<string>();
+
             // Process data for visualization
             const nodes = graphData.nodes.map((n: any) => {
                 let val = 8;
-                let color = '#AF52DE'; // Default purple
+                const type = n.type.toLowerCase(); // Normalize
+                types.add(type);
 
-                switch (n.type) {
-                    case 'document':
-                        val = 15;
-                        color = '#0071E3'; // Blue
-                        break;
-                    case 'issuer':
-                        val = 12;
-                        color = '#34C759'; // Green
-                        break;
-                    case 'category':
-                        val = 10;
-                        color = '#FF9500'; // Orange
-                        break;
-                    case 'tag':
-                        val = 6;
-                        color = '#FF2D55'; // Pink/Red
-                        break;
-                    case 'organization':
-                        val = 10;
-                        color = '#5856D6'; // Indigo
-                        break;
-                    case 'location':
-                        val = 8;
-                        color = '#5AC8FA'; // Light Blue
-                        break;
-                    case 'person':
-                        val = 8;
-                        color = '#AF52DE'; // Purple
-                        break;
-                    default:
-                        val = 6;
-                        color = '#8E8E93'; // Gray - Uncategorized
-                        n.type = 'uncategorized'; // Normalize
-                        break;
-                }
+                // Dynamic Color
+                const color = stringToColor(type);
+
+                // Adjust size based on importance (still keep some heuristics for size if desired, or make generic)
+                if (type === 'document') val = 15;
+                else if (type === 'issuer' || type === 'category') val = 12;
+                else val = 8;
 
                 return {
                     ...n,
+                    type, // Ensure normalized
                     val,
                     color,
                     properties: n.properties || {}
                 };
             });
+
+            setAvailableTypes(Array.from(types).sort());
 
             const newData = { nodes, links: graphData.links };
             setData(newData);
@@ -314,6 +306,7 @@ const GraphView: React.FC = () => {
                 isAuditMode={auditMode}
                 conflictCount={conflicts.length}
                 nodes={data.nodes}
+                availableTypes={availableTypes}
             />
 
             {conflicts.length > 0 && (
@@ -473,7 +466,13 @@ const GraphView: React.FC = () => {
                                 </div>
                                 <div>
                                     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Type</div>
-                                    <Badge color={selectedNode.type === 'document' ? 'primary' : selectedNode.type === 'issuer' ? 'success' : 'warning'}>
+                                    <Badge color={
+                                        selectedNode.type === 'document' ? 'primary' :
+                                            selectedNode.type === 'issuer' ? 'success' :
+                                                selectedNode.type === 'category' ? 'warning' :
+                                                    selectedNode.type === 'tag' ? 'danger' :
+                                                        'default'
+                                    }>
                                         {selectedNode.type}
                                     </Badge>
                                 </div>
@@ -529,14 +528,12 @@ const GraphView: React.FC = () => {
                     <Card className="p-4 bg-gradient-to-br from-blue-50 to-white dark:from-gray-800 dark:to-gray-900 border border-blue-100 dark:border-gray-700">
                         <h4 className="font-semibold text-blue-900 dark:text-blue-400 mb-2 text-sm">Legend</h4>
                         <div className="space-y-2 text-sm text-gray-800 dark:text-gray-300">
-                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#0071E3]"></span> Document</div>
-                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#34C759]"></span> Issuer</div>
-                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#FF9500]"></span> Category</div>
-                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#5856D6]"></span> Organization</div>
-                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#FF2D55]"></span> Tag</div>
-                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#5AC8FA]"></span> Location</div>
-                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#AF52DE]"></span> Person</div>
-                            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#8E8E93]"></span> Uncategorized</div>
+                            {availableTypes.length > 0 ? availableTypes.map(type => (
+                                <div key={type} className="flex items-center gap-2">
+                                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: stringToColor(type) }}></span>
+                                    <span className="capitalize">{type}</span>
+                                </div>
+                            )) : <span className="text-gray-400 italic">No types detected</span>}
                         </div>
                     </Card>
 

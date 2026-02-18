@@ -15,6 +15,7 @@ interface GraphControlsProps {
     isAuditMode: boolean;
     conflictCount: number;
     nodes: any[]; // For autocomplete
+    availableTypes: string[];
 }
 
 export const GraphControls: React.FC<GraphControlsProps> = ({
@@ -28,12 +29,54 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
     isAnalyzing,
     isAuditMode,
     conflictCount,
-    nodes
+    nodes,
+    availableTypes
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['document', 'person', 'organization', 'issuer', 'category', 'tag', 'location', 'uncategorized']));
+    // Initialize with all types active by default, or better yet start empty and fill on mount?
+    // Actually better to have them active.
+    const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
     const [showFilters, setShowFilters] = useState(false);
     const [suggestions, setSuggestions] = useState<any[]>([]);
+
+    // Initialize/Update active filters when availableTypes change
+    useEffect(() => {
+        // If it's the first load (empty filters), activate all
+        // Or if new types appear, activate them.
+        // Simplest strategy: If we have new types that aren't tracked, add them to active.
+        if (availableTypes.length > 0) {
+            const newFilters = new Set(activeFilters);
+            let changed = false;
+            availableTypes.forEach(t => {
+                if (!newFilters.has(t) && !activeFilters.has(t)) {
+                    // Wait, we need to know if it was explicitly disabled.
+                    // For now, let's just default all to TRUE on initial load.
+                    // But we need to track "disabled" types instead of "active" types for better UX?
+                    // The parent uses "hiddenTypes".
+                    // Let's stick to activeFilters for UI state.
+                }
+            });
+
+            // Better approach: Synchronize with what the user sees.
+            // The parent manages "hiddenTypes". Here we manage UI toggle state.
+            // Let's just set all to active initially.
+            if (activeFilters.size === 0) {
+                setActiveFilters(new Set(availableTypes));
+            } else {
+                // Add any new types
+                const updated = new Set(activeFilters);
+                availableTypes.forEach(t => {
+                    // If we haven't seen this type before (complex to track 'seen'), just add it?
+                    // For now, let's just ensure if availableTypes grows, we include them.
+                    // A simpler way: The parent should probably tell us what is hidden.
+                    // But sticking to the requested refactor:
+                    if (!updated.has(t)) updated.add(t);
+                });
+                if (updated.size !== activeFilters.size) setActiveFilters(updated);
+            }
+        }
+    }, [availableTypes]);
+
 
     useEffect(() => {
         if (searchQuery.trim().length > 1) {
@@ -47,13 +90,16 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
 
     const handleFilterToggle = (type: string) => {
         const newFilters = new Set(activeFilters);
+        let isVisible = false;
         if (newFilters.has(type)) {
             newFilters.delete(type);
+            isVisible = false;
         } else {
             newFilters.add(type);
+            isVisible = true;
         }
         setActiveFilters(newFilters);
-        onFilterChange(type, newFilters.has(type));
+        onFilterChange(type, isVisible);
     };
 
     const handleSearchSelect = (label: string) => {
@@ -98,14 +144,14 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
                     </div>
 
                     <div className="relative">
-                        <Button variant="secondary" onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2">
+                        <Button variant="secondary" onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2" title="Filter nodes by type">
                             <Filter className="w-4 h-4" />
                             Filters
                         </Button>
                         {showFilters && (
-                            <div className="absolute top-full left-0 mt-2 p-3 bg-white dark:bg-[#1c1c1e] border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl w-48 z-30">
+                            <div className="absolute top-full left-0 mt-2 p-3 bg-white dark:bg-[#1c1c1e] border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl w-48 z-30 max-h-60 overflow-y-auto">
                                 <div className="space-y-2">
-                                    {['document', 'person', 'organization', 'issuer', 'category', 'tag', 'location', 'uncategorized'].map(type => (
+                                    {availableTypes.length > 0 ? availableTypes.map(type => (
                                         <label key={type} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300 capitalize hover:text-blue-500">
                                             <input
                                                 type="checkbox"
@@ -115,7 +161,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
                                             />
                                             {type}
                                         </label>
-                                    ))}
+                                    )) : <div className="text-gray-400 text-xs text-center py-2">No entity types found</div>}
                                 </div>
                             </div>
                         )}

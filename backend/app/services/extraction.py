@@ -26,6 +26,7 @@ EXTRACT_PROMPT = (
 	"   - **Roles**: Job titles or functions (e.g., 'Manager', 'Landlord').\n"
 	"   - **Locations**: Cities, addresses, specific rooms/buildings.\n"
 	"   - **Check**: Before classifying 'Accounts Payable', 'The Landlord', or 'Support Team' as a Person, STOP. These are Organizations or Roles.\n"
+	"   - **Custom Entities (DYNAMIC)**: For any other important entity that is NOT a Person, Organization, Role, or Location, extract it here. Assign a specific `type` (e.g., 'Vehicle', 'Statute', 'Event', 'Project', 'Asset').\n"
 	"4. **Relationships**: Identify **explicit connections** between entities. Use active verbs. \n"
 	"   - Examples: 'John Doe (Person) WORKS_FOR Acme Corp (Organization)', 'Payment (Action) PAYS_FOR Rent (Concept)'.\n"
 	"5. **Actionable Tasks**: Identify specific deadlines and recommended next steps.\n"
@@ -46,6 +47,7 @@ EXTRACT_SCHEMA = {
 	"organizations": [{"name": "string", "type": "string|null", "description": "string|null"}], # Companies, Depts
 	"roles": [{"name": "string", "description": "string|null"}], # Job titles, functional roles
 	"locations": [{"name": "string", "type": "string|null"}],
+	"custom_entities": [{"name": "string", "type": "string", "description": "string|null"}], # Dynamic types
 	"relationships": [{"source": "string", "target": "string", "relation": "string", "description": "string|null"}],
 	"addresses": [{"label": "string|null", "address": "string"}],
 	"amounts": [{"label": "string|null", "value": "number", "currency": "string|null"}],
@@ -64,8 +66,9 @@ class ExtractedFieldsModel(BaseModel):
 	priority_score: Optional[int] = None
 	people: Optional[list] = None
 	organizations: Optional[list] = None
-	roles: Optional[list] = None # NEW
+	roles: Optional[list] = None
 	locations: Optional[list] = None
+	custom_entities: Optional[list] = None # NEW dynamic types
 	relationships: Optional[list] = None
 	addresses: Optional[list] = None
 	amounts: Optional[list] = None
@@ -110,7 +113,7 @@ def extract_fields(text: str) -> Optional[Dict[str, Any]]:
 			# Note: Pydantic v2 model_validate does not mutate in-place usually if dict is passed directly unless we instantiate model.
 			# But here we just want to ensure structure is roughly correct.
 			# We'll manually fix None -> [] for safety.
-			for k in ["people", "organizations", "roles", "locations", "tags", "addresses", "amounts", "dates", "deadlines", "summary_bullets", "recommended_actions"]:
+			for k in ["people", "organizations", "roles", "locations", "custom_entities", "tags", "addresses", "amounts", "dates", "deadlines", "summary_bullets", "recommended_actions"]:
 				if k not in data or data[k] is None:
 					data[k] = []
 			
