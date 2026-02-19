@@ -1,69 +1,92 @@
 
 import React, { useEffect, useState } from 'react';
-import { getTimeline, TimelineItem } from '../api/timeline';
+import { getTimeline, TimelineEvent } from '../api/timeline';
 import { Section } from '../components/ui/Section';
-import Card from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { Calendar, FileText, AlertCircle, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const TimelinePage: React.FC = () => {
-	const [items, setItems] = useState<TimelineItem[]>([]);
+	const [events, setEvents] = useState<TimelineEvent[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		setLoading(true);
 		getTimeline()
-			.then(setItems)
+			.then(setEvents)
 			.catch(e => setError(e.message || 'Failed to load timeline'))
 			.finally(() => setLoading(false));
 	}, []);
 
+	// Group events by Month/Year
+	const groupedEvents = events.reduce((acc, event) => {
+		const dateObj = new Date(event.date);
+		const key = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
+		if (!acc[key]) acc[key] = [];
+		acc[key].push(event);
+		return acc;
+	}, {} as Record<string, TimelineEvent[]>);
+
+	const orderedGroupKeys = Array.from(new Set(events.map(e => {
+		const dateObj = new Date(e.date);
+		return dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
+	})));
+
 	return (
-		<Section title="Upcoming Deadlines">
-			<Card className="max-w-3xl mx-auto p-8 animate-fade-in min-h-[50vh]">
+		<Section title="Investigation Timeline">
+			<div className="max-w-4xl mx-auto p-4 animate-fade-in min-h-[50vh]">
 				{loading ? (
 					<div className="flex justify-center items-center py-20 text-gray-400">Loading timeline...</div>
 				) : error ? (
 					<div className="text-red-500 font-medium py-10 text-center">{error}</div>
-				) : !items.length ? (
-					<div className="text-gray-500 text-center py-20">No upcoming deadlines found.</div>
+				) : !events.length ? (
+					<div className="text-gray-500 text-center py-20">No events found in timeline. Upload documents to generate history.</div>
 				) : (
-					<div className="relative pl-4 sm:pl-8 py-4">
-						<div className="absolute left-6 sm:left-10 top-2 bottom-0 w-[2px] bg-gray-100 rounded-full z-0" />
-						<ul className="space-y-10 relative z-10">
-							{items.map((item, idx) => (
-								<li key={item.id} className="flex items-start gap-6 group">
-									<div className="flex flex-col items-center z-10 pt-1">
-										<span className={`w-4 h-4 rounded-full border-[3px] bg-white pointer-events-none ring-4 ring-white ${item.severity === 'high' ? 'border-red-500'
-												: item.severity === 'medium' ? 'border-yellow-400'
-													: 'border-green-500'
-											}`} />
-									</div>
-									<div className="flex-1 -mt-1 hover:bg-gray-50/80 p-4 -ml-4 rounded-2xl transition-all cursor-pointer group-hover:shadow-sm"
-										onClick={() => window.open(`/documents/${item.document_id}`, '_blank')}
-									>
-										<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 sm:gap-4 mb-1">
-											<h3 className="text-base font-semibold text-gray-900 leading-tight">{item.label}</h3>
-											<span className="text-xs font-medium text-gray-400 whitespace-nowrap">{item.due_date}</span>
-										</div>
-										<p className="text-sm text-gray-500 mb-3">{item.action || 'No additional action required.'}</p>
+					<div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
 
-										<div className="flex items-center gap-3">
-											<Badge color={item.severity === 'high' ? 'danger' : item.severity === 'medium' ? 'warning' : 'success'}>
-												{item.severity.charAt(0).toUpperCase() + item.severity.slice(1)} Priority
-											</Badge>
-											<span className="text-xs text-gray-400 flex items-center gap-1">
-												<svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-												{item.filename}
-											</span>
+						{orderedGroupKeys.map(group => (
+							<div key={group} className="relative">
+								<div className="sticky top-20 z-20 mb-4 ml-12 md:ml-0 md:text-center">
+									<span className="inline-block px-3 py-1 text-sm font-semibold text-slate-900 bg-slate-100 rounded-full border border-slate-200 shadow-sm dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700">
+										{group}
+									</span>
+								</div>
+
+								{groupedEvents[group].map((event) => (
+									<div key={event.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active mb-8">
+
+										{/* Icon */}
+										<div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 dark:bg-slate-800 dark:border-slate-700">
+											{event.type === 'document_upload' ? <FileText className="w-5 h-5 text-blue-500" /> :
+												event.type === 'deadline' ? <Clock className="w-5 h-5 text-red-500" /> :
+													event.type === 'document_date' ? <Calendar className="w-5 h-5 text-green-500" /> :
+														<AlertCircle className="w-5 h-5 text-gray-500" />}
+										</div>
+
+										{/* Card Replacement (Div) */}
+										<div className={`w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 shadow-md hover:shadow-lg transition-shadow bg-white dark:bg-gray-800 rounded-xl border-l-4 md:border-l border-t-0 border-r-0 border-b-0 md:group-odd:border-r-4 md:group-odd:border-l-0 ${event.type === 'deadline' ? 'border-red-500' : event.type === 'document_upload' ? 'border-blue-500' : 'border-green-500'}`}>
+											<div className="flex justify-between items-start mb-1">
+												<time className="font-mono text-xs text-slate-500">{event.date}</time>
+												<Badge color={event.type === 'deadline' ? 'danger' : 'default'}>
+													{event.type.replace('_', ' ')}
+												</Badge>
+											</div>
+											<h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">{event.title}</h3>
+											<p className="text-sm text-slate-600 dark:text-slate-400 mb-3">{event.description}</p>
+											{event.related_node_id && (
+												<Link to={`/documents/${event.related_node_id}`} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+													View Document →
+												</Link>
+											)}
 										</div>
 									</div>
-								</li>
-							))}
-						</ul>
+								))}
+							</div>
+						))}
 					</div>
 				)}
-			</Card>
+			</div>
 		</Section>
 	);
 };

@@ -1,17 +1,21 @@
 import axios from 'axios';
 
-export interface TimelineItem {
-  id: number;
-  document_id: string;
-  label: string;
-  due_date: string;
-  severity: 'low' | 'medium' | 'high';
-  action?: string;
-  filename: string;
-  doc_type?: string;
+export interface TimelineEvent {
+  id: string;
+  date: string; // YYYY-MM-DD
+  title: string;
+  description?: string;
+  type: string; // 'document_upload', 'deadline', 'meeting', 'transaction', 'document_date'
+  related_node_id?: string;
 }
 
-export async function getTimeline(): Promise<TimelineItem[]> {
-  const res = await axios.get<TimelineItem[]>('/api/timeline');
-  return res.data;
+export interface TimelineResponse {
+  events: TimelineEvent[];
+}
+
+export async function getTimeline(): Promise<TimelineEvent[]> {
+  const token = localStorage.getItem('token');
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await axios.get<TimelineResponse>('/api/timeline/', { headers });
+  return res.data.events;
 }

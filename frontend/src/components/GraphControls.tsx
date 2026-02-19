@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import Button from './ui/Button';
 import { Search, Filter, HelpCircle, RefreshCw, AlertTriangle, Route } from 'lucide-react';
 import Input from './ui/Input';
+import { QueryBuilder, QueryRule } from './QueryBuilder';
 
 interface GraphControlsProps {
     onSearch: (query: string) => void;
     onFilterChange: (type: string, isVisible: boolean) => void;
+    onQueryChange: (rules: QueryRule[]) => void; // New Prop
     onRebuild: () => void;
     onAnalyze: () => void;
     onToggleAudit: () => void;
     onOpenHelp: () => void;
+    onExportCleanRoom: () => void; // New Prop
     isRebuilding: boolean;
     isAnalyzing: boolean;
     isAuditMode: boolean;
@@ -21,10 +24,12 @@ interface GraphControlsProps {
 export const GraphControls: React.FC<GraphControlsProps> = ({
     onSearch,
     onFilterChange,
+    onQueryChange,
     onRebuild,
     onAnalyze,
     onToggleAudit,
     onOpenHelp,
+    onExportCleanRoom,
     isRebuilding,
     isAnalyzing,
     isAuditMode,
@@ -33,10 +38,9 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
     availableTypes
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
-    // Initialize with all types active by default, or better yet start empty and fill on mount?
-    // Actually better to have them active.
     const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
     const [showFilters, setShowFilters] = useState(false);
+    const [showQueryBuilder, setShowQueryBuilder] = useState(false); // New State
     const [suggestions, setSuggestions] = useState<any[]>([]);
 
     // Initialize/Update active filters when availableTypes change
@@ -185,11 +189,21 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
                         onClick={onAnalyze}
                         disabled={isAnalyzing}
                         className="flex items-center gap-2"
-                        title="Detect potential conflicts or inconsistent data in the graph"
+                        title="Scan for suspicious patterns (Money Laundering, Shell Companies)"
                     >
                         <AlertTriangle className="w-4 h-4" />
-                        {isAnalyzing ? 'Analyzing...' : 'Conflicts'}
+                        {isAnalyzing ? 'Scanning...' : 'Scan Patterns'}
                         {conflictCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{conflictCount}</span>}
+                    </Button>
+
+                    <Button
+                        variant={showQueryBuilder ? 'primary' : 'secondary'}
+                        onClick={() => setShowQueryBuilder(!showQueryBuilder)}
+                        className="flex items-center gap-2"
+                        title="Toggle Visual Query Builder"
+                    >
+                        <Filter className="w-4 h-4" />
+                        Advanced
                     </Button>
 
                     <Button onClick={onRebuild} disabled={isRebuilding} variant="secondary" title="Rebuild the entire knowledge graph from documents">
@@ -199,8 +213,19 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
                     <Button onClick={onOpenHelp} variant="secondary" title="View help and keyboard shortcuts">
                         <HelpCircle className="w-4 h-4" />
                     </Button>
+
+                    <Button onClick={onExportCleanRoom} variant="secondary" title="Export Clean Room (Redacted)">
+                        Download Graph
+                    </Button>
                 </div>
             </div>
+
+            {/* Query Builder Area */}
+            {showQueryBuilder && (
+                <div className="animate-in slide-in-from-top-2 duration-200">
+                    <QueryBuilder onQueryChange={onQueryChange} />
+                </div>
+            )}
         </div>
     );
 };

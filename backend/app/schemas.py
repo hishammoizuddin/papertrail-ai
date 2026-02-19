@@ -68,15 +68,23 @@ class ActionItemBase(BaseModel):
     payload: Optional[dict] = None
     created_at: datetime
 
-class ConflictItem(BaseModel):
-    source_id: str
-    target_id: str
+class PatternMatch(BaseModel):
+    pattern_id: str
+    pattern_name: str
     description: str
+    involved_node_ids: List[str]
+    confidence: float
     severity: str
 
-class ConflictReport(BaseModel):
-    conflicts: List[ConflictItem]
-    node_ids_analyzed: List[str]
+class PatternReport(BaseModel):
+    matches: List[PatternMatch]
+
+class PatternDefinition(BaseModel):
+    id: str
+    name: str
+    description: str
+    severity: str
+    prompt_template: str
 
 class DossierStats(BaseModel):
     total_documents: int
@@ -89,10 +97,6 @@ class Collaborator(BaseModel):
     id: str
     name: str
     role: Optional[str] = None
-    count: int
-
-class TrendPoint(BaseModel):
-    date: str
     count: int
 
 class TypeDistribution(BaseModel):
@@ -108,7 +112,6 @@ class DossierResponse(BaseModel):
     related_documents: List[DocumentSummary]
     related_actions: List[ActionItemBase]
     collaborators: List[Collaborator] = []
-    trends: List[TrendPoint] = []
     distribution: List[TypeDistribution] = []
 
 class ArenaPersona(BaseModel):
@@ -129,3 +132,14 @@ class ArenaTurnRequest(BaseModel):
 class ArenaResponse(BaseModel):
     speaker: str
     message: str
+
+class TimelineEvent(BaseModel):
+    id: str
+    date: date
+    title: str
+    description: Optional[str] = None
+    type: str # 'document_upload', 'deadline', 'meeting', 'transaction'
+    related_node_id: Optional[str] = None
+
+class TimelineResponse(BaseModel):
+    events: List[TimelineEvent]

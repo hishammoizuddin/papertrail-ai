@@ -11,6 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import { GraphControls } from './GraphControls';
 import { GraphHelpModal } from './GraphHelpModal';
 import { useToast } from '../context/ToastContext';
+import { QueryRule } from './QueryBuilder';
 
 interface Node {
     id: string;
@@ -57,11 +58,15 @@ const GraphView: React.FC = () => {
     const [conflicts, setConflicts] = useState<any[]>([]);
     const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
     const [highlightedLinks, setHighlightedLinks] = useState<Set<string>>(new Set());
+    const [queryRules, setQueryRules] = useState<QueryRule[]>([]);
 
     // Dossier State
     const [isDossierOpen, setIsDossierOpen] = useState(false);
     const [dossierData, setDossierData] = useState<DossierData | null>(null);
     const [loadingDossier, setLoadingDossier] = useState(false);
+
+    // Context Menu State
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, node: Node | null } | null>(null);
 
     // UX State
     const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -96,8 +101,14 @@ const GraphView: React.FC = () => {
                 const type = n.type.toLowerCase(); // Normalize
                 types.add(type);
 
-                // Dynamic Color
-                const color = stringToColor(type);
+                let finalLabel = n.label;
+                let finalColor = stringToColor(type);
+
+                // Handle Redaction
+                if (n.properties && n.properties.is_redacted) {
+                    finalLabel = 'REDACTED';
+                    finalColor = '#000000';
+                }
 
                 // Adjust size based on importance (still keep some heuristics for size if desired, or make generic)
                 if (type === 'document') val = 15;
@@ -106,9 +117,10 @@ const GraphView: React.FC = () => {
 
                 return {
                     ...n,
+                    label: finalLabel,
                     type, // Ensure normalized
                     val,
-                    color,
+                    color: finalColor,
                     properties: n.properties || {}
                 };
             });
@@ -118,7 +130,7 @@ const GraphView: React.FC = () => {
             const newData = { nodes, links: graphData.links };
             setData(newData);
             // Initial filter application
-            filterGraphData(newData, hiddenTypes);
+            filterGraphData(newData, hiddenTypes, []);
 
         } catch (error) {
             console.error("Failed to fetch graph data:", error);
@@ -128,8 +140,24 @@ const GraphView: React.FC = () => {
         }
     };
 
-    const filterGraphData = (sourceData: GraphData, hidden: Set<string>) => {
-        const visibleNodes = sourceData.nodes.filter(n => !hidden.has(n.type));
+    const filterGraphData = (sourceData: GraphData, hidden: Set<string>, rules: QueryRule[]) => {
+        let visibleNodes = sourceData.nodes.filter(n => !hidden.has(n.type));
+
+        if (rules.length > 0) {
+            visibleNodes = visibleNodes.filter(node => {
+                return rules.every(rule => {
+                    const val = node[rule.field as keyof Node]?.toString().toLowerCase() || '';
+                    const searchVal = rule.value.toLowerCase();
+
+                    if (rule.operator === 'contains') return val.includes(searchVal);
+                    if (rule.operator === 'equals') return val === searchVal;
+                    if (rule.operator === 'starts_with') return val.startsWith(searchVal);
+                    if (rule.operator === 'ends_with') return val.endsWith(searchVal);
+                    return true;
+                });
+            });
+        }
+
         const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
 
         const visibleLinks = sourceData.links.filter(l => {
@@ -142,9 +170,32 @@ const GraphView: React.FC = () => {
     };
 
     useEffect(() => {
-        filterGraphData(data, hiddenTypes);
-    }, [data, hiddenTypes]);
+        filterGraphData(data, hiddenTypes, queryRules);
+    }, [data, hiddenTypes, queryRules]);
 
+
+    const handleNodeRightClick = (node: Node, event: MouseEvent) => {
+        // Prevent default browser context menu? 
+        // react-force-graph might handle the event, but we can capture coordinates
+        // Actually, onNodeRightClick gives (node, event)
+        setContextMenu({ x: event.clientX, y: event.clientY, node });
+    };
+
+    const handleRedactNode = async () => {
+        if (!contextMenu?.node) return;
+        try {
+            await axios.post(`/api/export/redact/${contextMenu.node.id}`);
+            addToast(`Redacted ${contextMenu.node.label}`, 'success');
+            setContextMenu(null);
+            // Ideally update local graph state to show as redacted (e.g. black color)
+            // For now, let's just refresh or update properties locally
+            const newNodes = data.nodes.map(n => n.id === contextMenu.node!.id ? { ...n, color: '#000000', label: 'REDACTED' } : n);
+            setData({ ...data, nodes: newNodes });
+        } catch (error) {
+            console.error("Failed to redact node:", error);
+            addToast("Failed to redact entity", 'error');
+        }
+    };
 
     const handleRebuild = async () => {
         setRebuilding(true);
@@ -163,16 +214,17 @@ const GraphView: React.FC = () => {
     const handleAnalyze = async () => {
         setAnalyzing(true);
         try {
-            const res = await axios.post('/api/graph/analyze', { node_ids: [] });
-            setConflicts(res.data.conflicts);
-            if (res.data.conflicts.length === 0) {
-                addToast("No conflicts detected", 'success');
+            // New Pattern Detection
+            const res = await axios.post('/api/graph/patterns/detect', {});
+            setConflicts(res.data.matches); // reusing 'conflicts' state for matches to save refactor time, renaming logically in head
+            if (res.data.matches.length === 0) {
+                addToast("No suspicious patterns detected", 'success');
             } else {
-                addToast(`${res.data.conflicts.length} conflicts detected`, 'error');
+                addToast(`${res.data.matches.length} patterns detected`, 'error');
             }
         } catch (error) {
             console.error("Failed to analyze graph:", error);
-            addToast("Analysis failed", 'error');
+            addToast("Pattern analysis failed", 'error');
         } finally {
             setAnalyzing(false);
         }
@@ -286,11 +338,37 @@ const GraphView: React.FC = () => {
         }
     }, [data, auditMode]); // Re-apply when data changes or mode changes
 
+    const handleExportCleanRoom = async () => {
+        try {
+            const response = await axios.get('/api/export/clean-room', {
+                responseType: 'blob', // Important for binary data
+            });
+
+            // Create a URL for the blob
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'clean_room_export.zip'); // or extract filename from content-disposition
+            document.body.appendChild(link);
+            link.click();
+
+            // Cleanup
+            link.parentNode?.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+            addToast("Clean Room export downloaded successfully", 'success');
+        } catch (error) {
+            console.error("Export failed:", error);
+            addToast("Failed to download Clean Room export", 'error');
+        }
+    };
+
     return (
         <Section title="Knowledge Map">
             <GraphControls
                 onSearch={handleSearch}
                 onFilterChange={(type, isVisible) => handleFilterChange(type, isVisible)}
+                onQueryChange={setQueryRules}
                 onRebuild={handleRebuild}
                 onAnalyze={handleAnalyze}
                 onToggleAudit={() => {
@@ -299,6 +377,7 @@ const GraphView: React.FC = () => {
                     setHighlightedLinks(new Set());
                 }}
                 onOpenHelp={() => setIsHelpOpen(true)}
+                onExportCleanRoom={handleExportCleanRoom}
                 isRebuilding={rebuilding}
                 isAnalyzing={analyzing}
                 isAuditMode={auditMode}
@@ -309,12 +388,15 @@ const GraphView: React.FC = () => {
 
             {conflicts.length > 0 && (
                 <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-fade-in">
-                    <h3 className="text-red-800 dark:text-red-400 font-semibold mb-2">Conflicts Detected ({conflicts.length})</h3>
+                    <h3 className="text-red-800 dark:text-red-400 font-semibold mb-2">Patterns Detected ({conflicts.length})</h3>
                     <div className="space-y-2 max-h-40 overflow-auto">
                         {conflicts.map((c, i) => (
-                            <div key={i} className="text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
-                                <span className="font-bold">⚠️</span>
-                                <span>{c.description}</span>
+                            <div key={i} className="text-sm text-red-700 dark:text-red-300 flex flex-col gap-1 border-b border-red-100 dark:border-red-800 pb-2">
+                                <div className="flex items-center gap-2 font-bold">
+                                    <span>⚠️ {c.pattern_name}</span>
+                                    <span className="text-xs bg-red-200 dark:bg-red-800 px-1 rounded">{c.severity}</span>
+                                </div>
+                                <span className="pl-6 text-xs">{c.description}</span>
                             </div>
                         ))}
                     </div>
@@ -329,6 +411,35 @@ const GraphView: React.FC = () => {
             />
 
             <GraphHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+            {/* Context Menu */}
+            {contextMenu && (
+                <div
+                    className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-xl py-1 min-w-[150px]"
+                    style={{ top: contextMenu.y, left: contextMenu.x }}
+                >
+                    <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 text-xs text-gray-500 font-semibold truncate max-w-[200px]">
+                        {contextMenu.node?.label}
+                    </div>
+                    <button
+                        className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                        onClick={handleRedactNode}
+                    >
+                        <span>🚫</span> Redact Entity
+                    </button>
+                    <button
+                        className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        onClick={() => setContextMenu(null)}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
+
+            {/* Click overlay to close menu */}
+            {contextMenu && (
+                <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
+            )}
 
             <div className="flex gap-6 h-[calc(100vh-220px)] animate-fade-in relative">
                 <Card className="flex-1 p-0 overflow-hidden relative border border-gray-200 dark:border-gray-800 shadow-xl bg-gray-50/50 dark:bg-gray-900/50">
@@ -345,6 +456,11 @@ const GraphView: React.FC = () => {
                                 cooldownTicks={100}
                                 onEngineStop={() => graphRef.current.zoomToFit(400)}
                                 nodeColor={(node: any) => {
+                                    // Check if node is pattern involved
+                                    const isPatternInvolved = conflicts.some(c => c.involved_node_ids.includes(node.id));
+
+                                    if (isPatternInvolved) return '#EF4444'; // Red for pattern matches
+
                                     if (auditMode && highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) {
                                         return '#e5e7eb'; // Gray out non-highlighted nodes
                                     }
@@ -358,12 +474,11 @@ const GraphView: React.FC = () => {
                                     const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
                                     const targetId = typeof link.target === 'object' ? link.target.id : link.target;
 
-                                    const isConflict = conflicts.some(c =>
-                                        (c.source_id === sourceId && c.target_id === targetId) ||
-                                        (c.source_id === targetId && c.target_id === sourceId)
+                                    const isPatternInvolved = conflicts.some(c =>
+                                        c.involved_node_ids.includes(sourceId) && c.involved_node_ids.includes(targetId)
                                     );
 
-                                    if (isConflict) return '#EF4444';
+                                    if (isPatternInvolved) return '#EF4444';
 
                                     if (auditMode && highlightedLinks.size > 0) {
                                         const linkSig = `${sourceId}-${targetId}`;
@@ -377,11 +492,10 @@ const GraphView: React.FC = () => {
                                     const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
                                     const targetId = typeof link.target === 'object' ? link.target.id : link.target;
 
-                                    const isConflict = conflicts.some(c =>
-                                        (c.source_id === sourceId && c.target_id === targetId) ||
-                                        (c.source_id === targetId && c.target_id === sourceId)
+                                    const isPatternInvolved = conflicts.some(c =>
+                                        c.involved_node_ids.includes(sourceId) && c.involved_node_ids.includes(targetId)
                                     );
-                                    if (isConflict) return 3;
+                                    if (isPatternInvolved) return 3;
 
                                     if (auditMode && highlightedLinks.size > 0) {
                                         const linkSig = `${sourceId}-${targetId}`;
@@ -391,9 +505,13 @@ const GraphView: React.FC = () => {
                                     return 1;
                                 }}
                                 onNodeClick={traceTrail}
+                                onNodeRightClick={handleNodeRightClick}
                                 onBackgroundClick={handleBackgroundClick}
                                 nodeCanvasObject={(node: any, ctx, globalScale) => {
-                                    if (auditMode && highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) {
+                                    // Check if involved in pattern
+                                    const isPatternInvolved = conflicts.some(c => c.involved_node_ids.includes(node.id));
+
+                                    if (auditMode && highlightedNodes.size > 0 && !highlightedNodes.has(node.id) && !isPatternInvolved) {
                                         const radius = 3;
                                         ctx.beginPath();
                                         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
@@ -414,8 +532,18 @@ const GraphView: React.FC = () => {
                                         // Use node.val for size, default to 4 if missing. Scale slightly (0.8) to avoid being too large.
                                         const radius = (node.val || 4) * 0.8;
                                         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-                                        ctx.fillStyle = node.color;
+
+                                        if (isPatternInvolved) {
+                                            ctx.fillStyle = '#EF4444';
+                                            ctx.shadowColor = '#EF4444';
+                                            ctx.shadowBlur = 10;
+                                        } else {
+                                            ctx.fillStyle = node.color;
+                                            ctx.shadowBlur = 0;
+                                        }
+
                                         ctx.fill();
+                                        ctx.shadowBlur = 0; // Reset
 
                                         ctx.strokeStyle = '#fff';
                                         ctx.lineWidth = 1.5 / globalScale;

@@ -26,13 +26,13 @@ def rebuild_graph_endpoint(current_user: User = Depends(get_current_user), sessi
     rebuild_graph(session, current_user)
     return {"status": "success", "message": "Graph rebuilt successfully"}
 
-from app.schemas import ConflictReport
+from app.schemas import PatternReport
 from typing import List
 
-class AnalyzeRequest(BaseModel):
-    node_ids: List[str] = []
+class PatternRequest(BaseModel):
+    pattern_id: str = None  # Optional: Run specific pattern only
 
-@router.post("/analyze", response_model=ConflictReport)
-def analyze_conflicts_endpoint(req: AnalyzeRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
-    from app.services.audit import analyze_conflicts
-    return analyze_conflicts(session, current_user, req.node_ids)
+@router.post("/patterns/detect", response_model=PatternReport)
+def detect_patterns_endpoint(req: PatternRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    from app.services.pattern_recognition import detect_patterns
+    return detect_patterns(session, current_user, req.pattern_id)

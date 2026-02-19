@@ -1,11 +1,12 @@
 from sqlmodel import Session, select, col, delete, func, or_
 from app.models import Document, GraphNode, GraphEdge, User, ActionItem, Deadline
 from app.db import get_session
-from app.schemas import DossierResponse, DossierStats, DocumentSummary, ActionItemBase, TrendPoint, TypeDistribution, Collaborator
+from app.schemas import DossierResponse, DossierStats, DocumentSummary, ActionItemBase, TypeDistribution, Collaborator
 import json
 import uuid
 import re
 from datetime import datetime
+from collections import defaultdict
 
 # --- HEURISTIC HELPERS ---
 NON_PERSON_KEYWORDS = {
@@ -408,32 +409,7 @@ def get_entity_dossier(session: Session, user: User, node_id: str) -> DossierRes
         currency="USD" # Default for now
     )
 
-    # 5. Calculate Activity Trends (Last 12 Months)
-    from collections import defaultdict
-    from datetime import datetime, timedelta
-    
-    activity_counts = defaultdict(int)
-    today = datetime.utcnow().date()
-    
-    # Initialize last 12 months with 0
-    for i in range(11, -1, -1):
-        month_str = (today - timedelta(days=i*30)).strftime("%Y-%m")
-        activity_counts[month_str] = 0
-        
-    for doc in docs:
-        if doc.created_at:
-            month_key = doc.created_at.strftime("%Y-%m")
-            if month_key in activity_counts:
-                activity_counts[month_key] += 1
-            # Handle out of range if needed, or just extend range dynamically
-            else:
-                 # Check if within last 12 months roughly
-                 if (today - doc.created_at.date()).days < 365:
-                     activity_counts[month_key] += 1
-
-    trends = [TrendPoint(date=k, count=v) for k, v in sorted(activity_counts.items())] # Use model ref
-
-    # 6. Calculate Document Type Distribution
+    # 5. Calculate Document Type Distribution
     type_counts = defaultdict(int)
     for doc in docs:
         t = doc.doc_type or "Uncategorized"
@@ -441,7 +417,7 @@ def get_entity_dossier(session: Session, user: User, node_id: str) -> DossierRes
     
     distribution = [TypeDistribution(type=k, count=v) for k, v in sorted(type_counts.items(), key=lambda x: x[1], reverse=True)]
 
-    # 7. Identify Top Collaborators (Co-occurring entities)
+    # 6. Identify Top Collaborators (Co-occurring entities)
     # Entities that appear in the same documents
     collaborators_map = defaultdict(int) # id -> count
     collaborator_details = {} # id -> {name, role}
@@ -469,7 +445,7 @@ def get_entity_dossier(session: Session, user: User, node_id: str) -> DossierRes
         if top_ids:
             collab_nodes = session.exec(select(GraphNode).where(col(GraphNode.id).in_(top_ids))).all()
             for n in collab_nodes:
-                # Filter out documents if they accidentally got linked as "collaborators" (should cover with not in doc_ids_list but double check type)
+                # Filter out documents if they accidentally got linked as "collaborators"
                 if n.type != 'document':
                     collaborator_details[n.id] = {"name": n.label, "role": n.properties.get("role") or n.type}
 
@@ -483,10 +459,28 @@ def get_entity_dossier(session: Session, user: User, node_id: str) -> DossierRes
                 role=details["role"],
                 count=count
             ))
-            if len(collaborators) >= 5: break
+            if len(collaborators) >= 8: break # Increased from 5 to 8 for better density
 
+    # Refine Document Sorting for "Key Documents"
+    # Sort by: Priority (high to low) -> Value (high to low) -> Date (new to old)
+    # We need to extract priority from json if possible, currently DocumentSummary doesn't have it explicitly but extracted_json might.
+    # We'll just sort by constructed tuple.
+    def doc_sort_key(d: DocumentSummary):
+        prio = 0
+        val = 0
+        if d.extracted_json:
+             try:
+                 data = json.loads(d.extracted_json) if isinstance(d.extracted_json, str) else d.extracted_json
+                 prio = data.get("priority_score", 0)
+                 if data.get("amounts"):
+                     val = data.get("amounts")[0].get("value", 0)
+             except: pass
+        
+        # Date fallback
+        dt_timestamp = d.created_at.timestamp() if d.created_at else 0
+        return (prio, val, dt_timestamp)
 
-
+    doc_summaries.sort(key=doc_sort_key, reverse=True)
 
     return DossierResponse(
         node_id=node.id,
@@ -497,6 +491,5 @@ def get_entity_dossier(session: Session, user: User, node_id: str) -> DossierRes
         related_documents=doc_summaries,
         related_actions=action_summaries,
         collaborators=collaborators,
-        trends=trends,
         distribution=distribution
     )
