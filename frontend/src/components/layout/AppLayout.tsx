@@ -5,14 +5,13 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
 import Logo from '../Logo';
+import Footer from '../Footer';
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { user, logout } = useAuth() as any;
-
-
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
@@ -80,6 +79,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <main className="flex-grow pt-20 px-6 pb-12 w-full max-w-7xl mx-auto animate-fade-in">
         {children}
       </main>
+      <Footer />
     </div>
   );
 };
