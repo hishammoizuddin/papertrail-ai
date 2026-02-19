@@ -104,11 +104,7 @@ const GraphView: React.FC = () => {
                 let finalLabel = n.label;
                 let finalColor = stringToColor(type);
 
-                // Handle Redaction
-                if (n.properties && n.properties.is_redacted) {
-                    finalLabel = 'REDACTED';
-                    finalColor = '#000000';
-                }
+                // Removed Redaction Logic
 
                 // Adjust size based on importance (still keep some heuristics for size if desired, or make generic)
                 if (type === 'document') val = 15;
@@ -181,21 +177,7 @@ const GraphView: React.FC = () => {
         setContextMenu({ x: event.clientX, y: event.clientY, node });
     };
 
-    const handleRedactNode = async () => {
-        if (!contextMenu?.node) return;
-        try {
-            await axios.post(`/api/export/redact/${contextMenu.node.id}`);
-            addToast(`Redacted ${contextMenu.node.label}`, 'success');
-            setContextMenu(null);
-            // Ideally update local graph state to show as redacted (e.g. black color)
-            // For now, let's just refresh or update properties locally
-            const newNodes = data.nodes.map(n => n.id === contextMenu.node!.id ? { ...n, color: '#000000', label: 'REDACTED' } : n);
-            setData({ ...data, nodes: newNodes });
-        } catch (error) {
-            console.error("Failed to redact node:", error);
-            addToast("Failed to redact entity", 'error');
-        }
-    };
+
 
     const handleRebuild = async () => {
         setRebuilding(true);
@@ -338,30 +320,7 @@ const GraphView: React.FC = () => {
         }
     }, [data, auditMode]); // Re-apply when data changes or mode changes
 
-    const handleExportCleanRoom = async () => {
-        try {
-            const response = await axios.get('/api/export/clean-room', {
-                responseType: 'blob', // Important for binary data
-            });
 
-            // Create a URL for the blob
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', 'clean_room_export.zip'); // or extract filename from content-disposition
-            document.body.appendChild(link);
-            link.click();
-
-            // Cleanup
-            link.parentNode?.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            addToast("Clean Room export downloaded successfully", 'success');
-        } catch (error) {
-            console.error("Export failed:", error);
-            addToast("Failed to download Clean Room export", 'error');
-        }
-    };
 
     return (
         <Section title="Knowledge Map">
@@ -377,7 +336,7 @@ const GraphView: React.FC = () => {
                     setHighlightedLinks(new Set());
                 }}
                 onOpenHelp={() => setIsHelpOpen(true)}
-                onExportCleanRoom={handleExportCleanRoom}
+
                 isRebuilding={rebuilding}
                 isAnalyzing={analyzing}
                 isAuditMode={auditMode}
@@ -421,12 +380,7 @@ const GraphView: React.FC = () => {
                     <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 text-xs text-gray-500 font-semibold truncate max-w-[200px]">
                         {contextMenu.node?.label}
                     </div>
-                    <button
-                        className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-                        onClick={handleRedactNode}
-                    >
-                        <span>🚫</span> Redact Entity
-                    </button>
+
                     <button
                         className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                         onClick={() => setContextMenu(null)}

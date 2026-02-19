@@ -12,7 +12,7 @@ interface GraphControlsProps {
     onAnalyze: () => void;
     onToggleAudit: () => void;
     onOpenHelp: () => void;
-    onExportCleanRoom: () => void; // New Prop
+
     isRebuilding: boolean;
     isAnalyzing: boolean;
     isAuditMode: boolean;
@@ -29,7 +29,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
     onAnalyze,
     onToggleAudit,
     onOpenHelp,
-    onExportCleanRoom,
+
     isRebuilding,
     isAnalyzing,
     isAuditMode,
@@ -214,9 +214,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
                         <HelpCircle className="w-4 h-4" />
                     </Button>
 
-                    <Button onClick={onExportCleanRoom} variant="secondary" title="Export Clean Room (Redacted)">
-                        Download Graph
-                    </Button>
+
                 </div>
             </div>
 

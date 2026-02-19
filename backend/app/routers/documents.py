@@ -289,13 +289,26 @@ def delete_document(document_id: str, current_user: User = Depends(get_current_u
 	
 	try:
 		# 1. Delete Pinecone vectors
+		# robustly: fetch chunk IDs first so we can delete by ID
+		chunks = session.exec(select(Chunk).where(Chunk.document_id == document_id)).all()
+		chunk_ids = [c.id for c in chunks]
+		
+		if chunk_ids:
+			try:
+				print(f"DEBUG: Deleting {len(chunk_ids)} vectors for document {document_id}")
+				pinecone_store.delete_vectors(chunk_ids)
+			except Exception as e:
+				print(f"Warning: Failed to delete vectors by ID for {document_id}: {e}")
+
 		try:
+			# Backup: delete by filter
 			pinecone_store.delete_vectors_by_document(document_id)
 		except Exception as e:
-			print(f"Warning: Failed to delete vectors for {document_id}: {e}")
+			print(f"Warning: Failed to delete vectors by filter for {document_id}: {e}")
 
 		# 2. Delete SQL Chunk records
-		session.query(Chunk).filter(Chunk.document_id == document_id).delete()
+		for chunk in chunks:
+			session.delete(chunk)
 		
 		# 3. Delete SQL Deadline records
 		session.query(Deadline).filter(Deadline.document_id == document_id).delete()
