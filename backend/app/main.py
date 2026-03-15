@@ -8,7 +8,20 @@ import os
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Bootstrap Neo4j schema (constraints + indexes)
+    try:
+        from app.services.neo4j_graph import bootstrap_schema
+        bootstrap_schema()
+    except Exception as e:
+        print(f"⚠️  Neo4j bootstrap warning: {e}")
     yield
+
+    # Gracefully close the Neo4j driver on shutdown
+    try:
+        from app.services.neo4j_graph import close_driver
+        close_driver()
+    except Exception:
+        pass
 
 app = FastAPI(lifespan=lifespan)
 

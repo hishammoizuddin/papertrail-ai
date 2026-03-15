@@ -14,3 +14,4 @@ cryptography
 python-jose[cryptography]
 passlib[bcrypt]
 bcrypt==3.2.2
+neo4j

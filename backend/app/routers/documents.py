@@ -235,16 +235,22 @@ def _process_document_bg(document_id: str):
 			except Exception as e:
 				print(f"Action generation warning: {e}")
    
-			# Trigger graph rebuild to include new nodes/edges
+			# Trigger SQL graph rebuild (legacy MySQL graph tables)
 			try:
-				# Fetch user to pass to rebuild_graph
 				user = session.get(User, doc.user_id)
 				if user:
 					graph.rebuild_graph(session, user)
 				else:
 					print(f"Graph rebuild skipped: User {doc.user_id} not found")
 			except Exception as e:
-				print(f"Graph rebuild warning: {e}")
+				print(f"SQL graph rebuild warning: {e}")
+
+			# Neo4j graph upsert (primary live graph store)
+			try:
+				from app.services.neo4j_service import upsert_document_to_graph
+				upsert_document_to_graph(doc, extract)
+			except Exception as e:
+				print(f"Neo4j upsert warning: {e}")
 
 			print(f"Background processing completed for {document_id}")
 
@@ -379,12 +385,14 @@ def delete_document(document_id: str, current_user: User = Depends(get_current_u
 		# 7. Delete Document record
 		session.delete(doc)
 		session.commit()
-		
-		# Rebuild graph to clean up any orphaned nodes if necessary, 
-		# though strict orphaned node cleanup might be too aggressive/expensive here.
-		# For now, we trust the graph service to rebuild if needed, or we just leave orphaned nodes ( issuers/tags)
-		# which might be reused. 
-		
+
+		# 8. Delete from Neo4j graph
+		try:
+			from app.services.neo4j_service import delete_document_from_graph
+			delete_document_from_graph(document_id, current_user.id)
+		except Exception as e:
+			print(f"Neo4j delete warning: {e}")
+
 		return Response(status_code=204)
 		
 	except Exception as e:
