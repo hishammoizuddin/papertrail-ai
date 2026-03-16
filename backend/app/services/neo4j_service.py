@@ -14,6 +14,13 @@ from datetime import datetime
 from typing import Optional
 
 from app.services.neo4j_graph import get_neo4j_driver
+from app.services.entity_resolution import (
+    canonicalize_relation,
+    fuzzy_merge_entities,
+)
+
+# Minimum confidence for an entity/relationship to be written to the graph
+_CONFIDENCE_THRESHOLD = 0.45
 
 # ---------------------------------------------------------------------------
 # Entity normalisation helpers (mirrors services/graph.py for consistency)
@@ -105,11 +112,14 @@ def _upsert_entity_node(tx, entity_id: str, label: str, entity_type: str,
     tx.run(
         """
         MERGE (e:Entity {id: $id})
-        SET e.label     = $label,
-            e.type      = $entity_type,
-            e.user_id   = $user_id,
-            e.role      = $role,
-            e.desc      = $desc
+        SET e.label          = $label,
+            e.type           = $entity_type,
+            e.user_id        = $user_id,
+            e.role           = $role,
+            e.desc           = $desc,
+            e.canonical_name = $canonical_name,
+            e.aliases        = $aliases,
+            e.confidence     = $confidence
         """,
         id=entity_id,
         label=label,
@@ -117,6 +127,9 @@ def _upsert_entity_node(tx, entity_id: str, label: str, entity_type: str,
         user_id=user_id,
         role=properties.get("role"),
         desc=properties.get("desc") or properties.get("description"),
+        canonical_name=properties.get("canonical_name") or label,
+        aliases=json.dumps(list(properties.get("aliases") or [])),
+        confidence=float(properties.get("confidence", 1.0)),
     )
 
 
@@ -143,6 +156,9 @@ def upsert_document_to_graph(doc, extract: Optional[dict]):
     Called after document ingestion succeeds.
     Merges the document node and all extracted entities/relationships into Neo4j.
     Uses MERGE throughout — safe to call multiple times (idempotent).
+
+    Supports both the NEW unified `entities[]` schema and the OLD flat arrays
+    (people, organizations, roles, locations, custom_entities) for backward compat.
     """
     driver = get_neo4j_driver()
 
@@ -170,95 +186,212 @@ def upsert_document_to_graph(doc, extract: Optional[dict]):
         if not extract:
             return
 
-        # Helper: create entity node + MENTIONS edge in one shot
-        def add_entity(name, entity_type, props=None):
-            eid = _make_entity_id(user_id, entity_type, name)
+        # ------------------------------------------------------------------
+        # Helper: upsert entity node + a typed edge from the document
+        # ------------------------------------------------------------------
+        def add_entity(name: str, entity_type: str, props: dict,
+                       doc_relation: str = "MENTIONS") -> Optional[str]:
+            """Create/update entity in Neo4j and link it to the document."""
+            canonical = (props.get("canonical_name") or name or "").strip()
+            eid = _make_entity_id(user_id, entity_type, canonical)
             if not eid:
                 return None
-            session.execute_write(_upsert_entity_node, eid, name.strip(), entity_type, user_id, props or {})
-            session.execute_write(_upsert_relationship, doc_id, eid, "MENTIONS")
+            session.execute_write(
+                _upsert_entity_node, eid, canonical, entity_type, user_id, props
+            )
+            session.execute_write(_upsert_relationship, doc_id, eid, doc_relation)
+
+            # Also MERGE alias nodes to the same canonical node
+            for alias in (props.get("aliases") or []):
+                alias_id = _make_entity_id(user_id, entity_type, alias)
+                if alias_id and alias_id != eid:
+                    # Point alias ID to canonical via MERGE so graph queries find both
+                    session.run(
+                        """
+                        MERGE (canonical:Entity {id: $canonical_id})
+                        MERGE (alias:Entity {id: $alias_id})
+                        SET alias.label    = $alias_label,
+                            alias.type     = $etype,
+                            alias.user_id  = $user_id,
+                            alias.canonical_id = $canonical_id
+                        MERGE (alias)-[:ALIAS_OF]->(canonical)
+                        """,
+                        alias_id=alias_id,
+                        alias_label=alias.strip(),
+                        etype=entity_type,
+                        user_id=user_id,
+                        canonical_id=eid,
+                    )
             return eid
 
-        # --- Explicit relationships (Knowledge Graph 2.0) ---
-        def infer_type(name):
-            name_lower = name.lower()
-            for p in extract.get("people", []):
-                if p["name"].lower() == name_lower:
-                    return "person" if _is_likely_person(name) else "role"
-            for o in extract.get("organizations", []):
-                if o["name"].lower() == name_lower:
-                    return "organization"
-            for r in extract.get("roles", []):
-                if r["name"].lower() == name_lower:
-                    return "role"
-            for c in extract.get("custom_entities", []):
-                if c["name"].lower() == name_lower:
-                    return c.get("type", "entity").lower()
-            if name_lower == doc.filename.lower():
-                return "document"
-            return "organization" if not _is_likely_person(name) else "entity"
+        # ------------------------------------------------------------------
+        # NEW SCHEMA PATH: unified `entities[]` array
+        # ------------------------------------------------------------------
+        new_entities = extract.get("entities") or []
+        
+        # Build a quick name→entity_id lookup for relationship processing
+        name_to_eid: dict[str, str] = {}
 
-        for rel in extract.get("relationships", []):
-            s_name = rel.get("source")
-            t_name = rel.get("target")
-            relation = rel.get("relation", "RELATED_TO").upper().replace(' ', '_')
-            if not s_name or not t_name:
-                continue
-            s_type = infer_type(s_name)
-            t_type = infer_type(t_name)
-            s_id = add_entity(s_name, s_type)
-            t_id = add_entity(t_name, t_type)
-            if s_id and t_id:
-                session.execute_write(_upsert_relationship, s_id, t_id, relation)
+        if new_entities:
+            # Confidence filter
+            confident_entities = [
+                e for e in new_entities
+                if float(e.get("confidence", 1.0)) >= _CONFIDENCE_THRESHOLD
+            ]
 
-        # --- Issuer ---
+            for ent in confident_entities:
+                raw_name = ent.get("canonical_name") or ent.get("name") or ""
+                etype = (ent.get("type") or "other").lower()
+
+                # Decide doc→entity edge type from entity's role in the doc
+                doc_rel = "MENTIONS"
+                if etype == "organization" and extract.get("issuer"):
+                    from app.services.entity_resolution import _normalize_for_comparison
+                    if _normalize_for_comparison(raw_name) == _normalize_for_comparison(extract.get("issuer", "")):
+                        doc_rel = "ISSUED_BY"
+                elif etype == "location":
+                    doc_rel = "LOCATED_AT"
+
+                props = {
+                    "canonical_name": raw_name,
+                    "aliases": ent.get("aliases") or [],
+                    "role": ent.get("role"),
+                    "desc": ent.get("description"),
+                    "confidence": ent.get("confidence", 1.0),
+                }
+                eid = add_entity(raw_name, etype, props, doc_rel)
+                if eid:
+                    name_to_eid[raw_name.lower()] = eid
+                    for alias in (ent.get("aliases") or []):
+                        name_to_eid[alias.lower()] = eid
+
+        else:
+            # ------------------------------------------------------------------
+            # LEGACY SCHEMA PATH: flat people/orgs/roles/locations/custom_entities
+            # (for documents processed before the schema upgrade)
+            # ------------------------------------------------------------------
+            def infer_type(name: str) -> str:
+                name_lower = name.lower()
+                for p in extract.get("people", []):
+                    if p["name"].lower() == name_lower:
+                        return "person" if _is_likely_person(name) else "role"
+                for o in extract.get("organizations", []):
+                    if o["name"].lower() == name_lower:
+                        return "organization"
+                for r in extract.get("roles", []):
+                    if r["name"].lower() == name_lower:
+                        return "role"
+                for c in extract.get("custom_entities", []):
+                    if c["name"].lower() == name_lower:
+                        return c.get("type", "entity").lower()
+                if name_lower == doc.filename.lower():
+                    return "document"
+                return "organization" if not _is_likely_person(name) else "entity"
+
+            for person in extract.get("people", []):
+                p_name = person["name"]
+                etype = "person" if _is_likely_person(p_name) else "role"
+                eid = add_entity(p_name, etype, {"role": person.get("role"), "desc": person.get("description")})
+                if eid:
+                    name_to_eid[p_name.lower()] = eid
+
+            for org in extract.get("organizations", []):
+                if extract.get("issuer") and org["name"].lower() == (extract.get("issuer") or "").lower():
+                    continue
+                eid = add_entity(org["name"], "organization", {"desc": org.get("description")})
+                if eid:
+                    name_to_eid[org["name"].lower()] = eid
+
+            for role in extract.get("roles", []):
+                eid = add_entity(role["name"], "role", {"desc": role.get("description")})
+                if eid:
+                    name_to_eid[role["name"].lower()] = eid
+
+            for loc in extract.get("locations", []):
+                eid = add_entity(loc["name"], "location", {}, "LOCATED_AT")
+                if eid:
+                    name_to_eid[loc["name"].lower()] = eid
+
+            for ent in extract.get("custom_entities", []):
+                eid = add_entity(ent["name"], ent.get("type", "entity").lower(), {"desc": ent.get("description")})
+                if eid:
+                    name_to_eid[ent["name"].lower()] = eid
+
+        # ------------------------------------------------------------------
+        # Issuer (always explicit, both schema paths)
+        # ------------------------------------------------------------------
         if extract.get("issuer"):
             issuer_id = _make_entity_id(user_id, "issuer", extract["issuer"])
-            if issuer_id:
-                session.execute_write(_upsert_entity_node, issuer_id, extract["issuer"], "issuer", user_id, {})
+            if issuer_id and issuer_id not in name_to_eid.values():
+                session.execute_write(
+                    _upsert_entity_node, issuer_id, extract["issuer"],
+                    "issuer", user_id, {"canonical_name": extract["issuer"]}
+                )
                 session.execute_write(_upsert_relationship, doc_id, issuer_id, "ISSUED_BY")
 
-        # --- Category ---
+        # ------------------------------------------------------------------
+        # Category
+        # ------------------------------------------------------------------
         if extract.get("category"):
             cat_id = _make_entity_id(user_id, "category", extract["category"])
             if cat_id:
-                session.execute_write(_upsert_entity_node, cat_id, extract["category"], "category", user_id, {})
+                session.execute_write(
+                    _upsert_entity_node, cat_id, extract["category"],
+                    "category", user_id, {}
+                )
                 session.execute_write(_upsert_relationship, doc_id, cat_id, "IN_CATEGORY")
 
-        # --- Tags ---
-        for tag in extract.get("tags", []):
+        # ------------------------------------------------------------------
+        # Tags
+        # ------------------------------------------------------------------
+        for tag in extract.get("tags") or []:
             tag_id = _make_entity_id(user_id, "tag", tag)
             if tag_id:
-                session.execute_write(_upsert_entity_node, tag_id, tag, "tag", user_id, {})
+                session.execute_write(
+                    _upsert_entity_node, tag_id, tag, "tag", user_id, {}
+                )
                 session.execute_write(_upsert_relationship, doc_id, tag_id, "TAGGED")
 
-        # --- People ---
-        for person in extract.get("people", []):
-            p_name = person["name"]
-            if _is_likely_person(p_name):
-                add_entity(p_name, "person", {"role": person.get("role"), "desc": person.get("description")})
-            else:
-                add_entity(p_name, "role", {"desc": person.get("description")})
-
-        # --- Organizations ---
-        for org in extract.get("organizations", []):
-            if extract.get("issuer") and org["name"].lower() == extract.get("issuer", "").lower():
+        # ------------------------------------------------------------------
+        # Relationships — use canonical edge types, confidence-filtered
+        # ------------------------------------------------------------------
+        for rel in extract.get("relationships") or []:
+            # Confidence filter
+            if float(rel.get("confidence", 1.0)) < _CONFIDENCE_THRESHOLD:
                 continue
-            add_entity(org["name"], "organization", {"desc": org.get("description")})
 
-        # --- Roles ---
-        for role in extract.get("roles", []):
-            add_entity(role["name"], "role", {"desc": role.get("description")})
+            s_name = rel.get("source") or ""
+            t_name = rel.get("target") or ""
+            if not s_name or not t_name:
+                continue
 
-        # --- Locations ---
-        for loc in extract.get("locations", []):
-            add_entity(loc["name"], "location", {})
+            # Use canonical relation from enrichment step, else canonicalize raw
+            canonical_rel = (
+                rel.get("canonical_relation")
+                or canonicalize_relation(rel.get("relation") or "")
+            )
 
-        # --- Custom entities ---
-        for ent in extract.get("custom_entities", []):
-            add_entity(ent["name"], ent.get("type", "entity").lower(), {"desc": ent.get("description")})
+            # Resolve entity IDs (may already exist from entity pass above)
+            def _resolve_or_create(name: str) -> Optional[str]:
+                norm = name.lower().strip()
+                if norm in name_to_eid:
+                    return name_to_eid[norm]
+                # Create as generic entity
+                etype = "organization" if not _is_likely_person(name) else "entity"
+                eid = add_entity(name, etype, {})
+                if eid:
+                    name_to_eid[norm] = eid
+                return eid
 
-    print(f"✅ Neo4j: ingested graph for doc {doc_id}")
+            s_id = _resolve_or_create(s_name)
+            t_id = _resolve_or_create(t_name)
+
+            if s_id and t_id:
+                session.execute_write(_upsert_relationship, s_id, t_id, canonical_rel)
+
+    print(f"✅ Neo4j: ingested graph for doc {doc_id} "
+          f"({len(new_entities or [])} entities, "
+          f"{len(extract.get('relationships') or [])} relationships)")
 
 
 def rebuild_graph_for_user(user_id: str, docs):
@@ -344,11 +477,7 @@ def get_graph_data(user_id: str) -> dict:
             """
             MATCH (n)
             WHERE n.user_id = $user_id
-            RETURN n.id AS id, n.label AS label, n.type AS type,
-                   n.summary AS summary, n.priority AS priority,
-                   n.date AS date, n.value AS value, n.currency AS currency,
-                   n.filename AS filename, n.created_at AS created_at,
-                   n.role AS role, n.desc AS desc
+            RETURN n
             """,
             user_id=user_id,
         )
@@ -356,18 +485,21 @@ def get_graph_data(user_id: str) -> dict:
         nodes = []
         node_ids = set()
         for row in node_result:
-            nid = row["id"]
+            node = row["n"]
+            nid = node.get("id")
+            if not nid: continue
+            
             node_ids.add(nid)
-            ntype = (row["type"] or "entity").lower()
+            ntype = (node.get("type") or "entity").lower()
             props = {}
             for k in ("summary", "priority", "date", "value", "currency",
-                      "filename", "created_at", "role", "desc"):
-                if row[k] is not None:
-                    props[k] = row[k]
+                      "filename", "created_at", "role", "desc", "canonical_name", "aliases", "confidence"):
+                if node.get(k) is not None:
+                    props[k] = node.get(k)
 
             nodes.append({
                 "id": nid,
-                "label": row["label"] or nid,
+                "label": node.get("label") or nid,
                 "type": ntype,
                 "properties": props,
             })

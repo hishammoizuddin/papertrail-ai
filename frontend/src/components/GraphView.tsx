@@ -6,7 +6,7 @@ import { Badge } from './ui/Badge';
 import Button from './ui/Button';
 import axios from 'axios';
 import DossierPanel, { DossierData } from './DossierPanel';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { GraphControls } from './GraphControls';
 import { GraphHelpModal } from './GraphHelpModal';
@@ -133,6 +133,26 @@ const GraphView: React.FC = () => {
             addToast("Failed to load Knowledge Graph", 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleZoomIn = () => {
+        if (graphRef.current) {
+            const currentZoom = graphRef.current.zoom();
+            graphRef.current.zoom(currentZoom * 1.5, 400);
+        }
+    };
+
+    const handleZoomOut = () => {
+        if (graphRef.current) {
+            const currentZoom = graphRef.current.zoom();
+            graphRef.current.zoom(currentZoom / 1.5, 400);
+        }
+    };
+
+    const handleZoomFit = () => {
+        if (graphRef.current) {
+            graphRef.current.zoomToFit(400, 50);
         }
     };
 
@@ -396,19 +416,33 @@ const GraphView: React.FC = () => {
             )}
 
             <div className="flex gap-6 h-[calc(100vh-220px)] animate-fade-in relative">
-                <Card className="flex-1 p-0 overflow-hidden relative border border-gray-200 dark:border-gray-800 shadow-xl bg-gray-50/50 dark:bg-gray-900/50">
+                <Card className="flex-1 p-0 overflow-hidden relative border border-gray-200 dark:border-gray-800 shadow-xl bg-gray-50/50 dark:bg-gray-900/50 group">
                     {!loading ? (
-                        <div ref={containerRef} className="w-full h-full">
+                        <div ref={containerRef} className="w-full h-full relative">
+                            {/* Floating Zoom Controls */}
+                            <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <Button variant="secondary" onClick={handleZoomIn} className="p-2 shadow-lg rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur" title="Zoom In">
+                                    <ZoomIn className="w-5 h-5" />
+                                </Button>
+                                <Button variant="secondary" onClick={handleZoomFit} className="p-2 shadow-lg rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur" title="Fit to Screen">
+                                    <Maximize className="w-5 h-5" />
+                                </Button>
+                                <Button variant="secondary" onClick={handleZoomOut} className="p-2 shadow-lg rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur" title="Zoom Out">
+                                    <ZoomOut className="w-5 h-5" />
+                                </Button>
+                            </div>
+
                             <ForceGraph2D
                                 ref={graphRef}
                                 width={dimensions.width}
                                 height={dimensions.height}
                                 graphData={filteredData}
                                 nodeLabel="label"
-                                d3AlphaDecay={0.02}
-                                d3VelocityDecay={0.3}
-                                cooldownTicks={100}
-                                onEngineStop={() => graphRef.current.zoomToFit(400)}
+                                d3AlphaDecay={0.05} // helps layout settle faster 
+                                d3VelocityDecay={0.4} // dampens the jittering
+                                warmupTicks={150} // Pre-calculate physics headless before rendering
+                                cooldownTicks={50} // Less time spent rendering messy layouts
+                                onEngineStop={() => graphRef.current.zoomToFit(400, 50)}
                                 nodeColor={(node: any) => {
                                     // Check if node is pattern involved
                                     const isPatternInvolved = conflicts.some(c => c.involved_node_ids.includes(node.id));
