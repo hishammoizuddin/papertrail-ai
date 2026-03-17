@@ -2,9 +2,7 @@ from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime, date
 from pydantic import BaseModel
-from sqlalchemy import JSON, Column
-from sqlalchemy import JSON, Column, text
-from sqlalchemy.dialects.mysql import LONGTEXT
+from sqlalchemy import JSON, Column, text, Text
 
 class User(SQLModel, table=True):
     id: str = Field(primary_key=True)
@@ -23,7 +21,7 @@ class Document(SQLModel, table=True):
     doc_type: Optional[str] = None
     issuer: Optional[str] = None
     primary_due_date: Optional[date] = None
-    extracted_json: Optional[str] = Field(default=None, sa_column=Column(LONGTEXT))
+    extracted_json: Optional[str] = Field(default=None, sa_column=Column(Text))
     status: str
     error_message: Optional[str] = None
     chunks: List["Chunk"] = Relationship(back_populates="document")
@@ -34,7 +32,7 @@ class Chunk(SQLModel, table=True):
     document_id: str = Field(foreign_key="document.id")
     page: int
     chunk_index: int
-    text: str = Field(sa_column=Column(LONGTEXT))
+    text: str = Field(sa_column=Column(Text))
     created_at: datetime
     document: Optional[Document] = Relationship(back_populates="chunks")
 
